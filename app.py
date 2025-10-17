@@ -9,9 +9,17 @@ from scipy.signal import fftconvolve
 from joblib import Parallel, delayed
 import warnings
 from matplotlib.ticker import FuncFormatter
-from SALib.sample.sobol import sample
-from SALib.analyze.sobol import analyze
 
+# IMPORTANTE: Garanta que SALib está instalado via requirements.txt
+try:
+    from SALib.sample.sobol import sample
+    from SALib.analyze.sobol import analyze
+except ImportError:
+    st.error("ERRO: A biblioteca SALib não foi encontrada. Por favor, certifique-se de que está incluída no seu requirements.txt e instalada para executar a Análise de Sensibilidade.")
+    # Define funções placeholder para evitar que o script quebre totalmente se SALib não estiver disponível
+    def sample(*args, **kwargs): return np.array([[0.5, 0.5, 0.5]]) # Retorna um array simples
+    def analyze(*args, **kwargs): return {'S1': np.array([0.0, 0.0, 0.0]), 'ST': np.array([0.0, 0.0, 0.0])}
+    
 # Configurações iniciais
 np.random.seed(50)  # Garante reprodutibilidade
 st.set_page_config(page_title="Simulador de Emissões CO₂eq", layout="wide")
@@ -38,15 +46,14 @@ def get_carbon_futures_quote():
     """
     Simula a obtenção da cotação do futuro de carbono (EUA Dec 25).
     
-    NOTA: O yfinance não suporta tickers de contratos futuros (como EUA-DEC25).
-    Usamos um valor de placeholder para fins de simulação.
+    NOTA: Usamos um valor de placeholder para fins de simulação.
     """
     
     # Preço do Carbono (EUA Dec 25 - Exemplo em EUR/tCO2eq)
     carbon_price_eur = 85.50  
     
     # Taxa de câmbio EUR/BRL (placeholder simples)
-    eur_brl_rate = 5.40 
+    eur_brl_rate = 5.40
     
     return carbon_price_eur, eur_brl_rate
 
@@ -95,13 +102,17 @@ def br_format_5_dec(x, pos):
 # SIDEBAR
 # ==============================================================================
 
+# Definição de valores iniciais para garantir que existam antes do botão
+if 'run_simulation' not in st.session_state:
+    st.session_state.run_simulation = False
+
 # Sidebar para entrada de parâmetros
 with st.sidebar:
     st.header("Parâmetros de Entrada")
     
     # Entrada principal de resíduos
     residuos_kg_dia = st.slider("Quantidade de resíduos (kg/dia)", 
-                               min_value=10, max_value=1000, value=100, step=10)
+                                 min_value=10, max_value=1000, value=100, step=10)
     
     st.subheader("Parâmetros Operacionais")
     
@@ -120,8 +131,8 @@ with st.sidebar:
     
     if st.button("Executar Simulação"):
         st.session_state.run_simulation = True
-    else:
-        st.session_state.run_simulation = False
+    # else:
+    #     st.session_state.run_simulation = False # Mantém True até o próximo clique
 
 # ==============================================================================
 # CONSTANTES E PARÂMETROS FIXOS
@@ -167,7 +178,7 @@ datas = pd.date_range(start=data_inicio, periods=dias, freq='D')
 PERFIL_N2O = {1: 0.10, 2: 0.30, 3: 0.40, 4: 0.15, 5: 0.05}
 
 # Valores específicos para compostagem termofílica (Yang et al. 2017) - valores fixos
-CH4_C_FRAC_THERMO = 0.006 
+CH4_C_FRAC_THERMO = 0.006  
 N2O_N_FRAC_THERMO = 0.0196  
 
 # Perfis temporais (Mantidos idênticos ao original)
@@ -224,9 +235,10 @@ def calcular_emissoes_aterro(params, dias_simulacao=dias):
 
     fator_umid = (1 - umidade_val) / (1 - 0.55)
     f_aberto = np.clip((massa_exposta_kg / residuos_kg_dia) * (h_exposta / 24), 0.0, 1.0)
-    docf_calc = 0.0147 * temp_val + 0.28
+    # docf_calc não é usado diretamente, mas sim T e DOC.
+    # docf_calc = 0.0147 * temp_val + 0.28 
 
-    potencial_CH4_por_kg = doc_val * docf_calc * MCF * F * (16/12) * (1 - Ri) * (1 - OX)
+    potencial_CH4_por_kg = doc_val * (0.0147 * temp_val + 0.28) * MCF * F * (16/12) * (1 - Ri) * (1 - OX)
     potencial_CH4_lote_diario = residuos_kg_dia * potencial_CH4_por_kg
 
     t = np.arange(1, dias_simulacao + 1, dtype=float)
@@ -239,10 +251,10 @@ def calcular_emissoes_aterro(params, dias_simulacao=dias):
     E_fechado = 2.15
     E_medio = f_aberto * E_aberto + (1 - f_aberto) * E_fechado
     E_medio_ajust = E_medio * fator_umid
-    emissao_diaria_N2O = (E_medio_ajust * (44/28) / 1_000_000) * residuos_kg_dia
+    emissoes_N2O_base = (E_medio_ajust * (44/28) / 1_000_000) * residuos_kg_dia
 
     kernel_n2o = np.array([PERFIL_N2O.get(d, 0) for d in range(1, 6)], dtype=float)
-    emissoes_N2O = fftconvolve(np.full(dias_simulacao, emissao_diaria_N2O), kernel_n2o, mode='full')[:dias_simulacao]
+    emissoes_N2O = fftconvolve(np.full(dias_simulacao, emissoes_N2O_base), kernel_n2o, mode='full')[:dias_simulacao]
 
     O2_concentracao = 21
     emissoes_CH4_pre_descarte_kg, emissoes_N2O_pre_descarte_kg = calcular_emissoes_pre_descarte(O2_concentracao, dias_simulacao)
@@ -295,7 +307,10 @@ def calcular_emissoes_compostagem(params, dias_simulacao=dias, dias_compostagem=
 def executar_simulacao_completa(parametros):
     umidade, T, DOC = parametros
     
+    # Aterro (Base)
     ch4_aterro, n2o_aterro = calcular_emissoes_aterro([umidade, T, DOC])
+    
+    # Vermicompostagem (Tese - Projeto)
     ch4_vermi, n2o_vermi = calcular_emissoes_vermi([umidade, T, DOC])
 
     total_aterro_tco2eq = (ch4_aterro * GWP_CH4_20 + n2o_aterro * GWP_N2O_20) / 1000
@@ -320,7 +335,6 @@ def executar_simulacao_unfccc(parametros):
 # EXECUÇÃO PRINCIPAL
 # ==============================================================================
 
-# Executar simulação quando solicitado
 if st.session_state.get('run_simulation', False):
     with st.spinner('Executando simulação...'):
         # 1. Executar modelo base
@@ -329,7 +343,7 @@ if st.session_state.get('run_simulation', False):
         ch4_aterro_dia, n2o_aterro_dia = calcular_emissoes_aterro(params_base)
         ch4_vermi_dia, n2o_vermi_dia = calcular_emissoes_vermi(params_base)
 
-        # 2. Construir DataFrame
+        # 2. Construir DataFrame (Tese)
         df = pd.DataFrame({
             'Data': datas,
             'CH4_Aterro_kg_dia': ch4_aterro_dia,
@@ -348,7 +362,7 @@ if st.session_state.get('run_simulation', False):
         df['Total_Vermi_tCO2eq_acum'] = df['Total_Vermi_tCO2eq_dia'].cumsum()
         df['Reducao_tCO2eq_acum'] = df['Total_Aterro_tCO2eq_acum'] - df['Total_Vermi_tCO2eq_acum']
 
-        # 3. Resumo anual
+        # 3. Resumo anual (Tese)
         df['Year'] = df['Data'].dt.year
         df_anual_revisado = df.groupby('Year').agg({
             'Total_Aterro_tCO2eq_dia': 'sum',
@@ -463,18 +477,19 @@ if st.session_state.get('run_simulation', False):
         x = np.arange(len(df_evitadas_anual['Year']))
         bar_width = 0.35
 
-        ax.bar(x - bar_width/2, df_evitadas_anual['Proposta da Tese'], width=bar_width,
-                label='Proposta da Tese', edgecolor='black')
-        ax.bar(x + bar_width/2, df_evitadas_anual['UNFCCC (2012)'], width=bar_width,
-                label='UNFCCC (2012)', edgecolor='black', hatch='//')
+        bar1 = ax.bar(x - bar_width/2, df_evitadas_anual['Proposta da Tese'], width=bar_width,
+                      label='Proposta da Tese', edgecolor='black')
+        bar2 = ax.bar(x + bar_width/2, df_evitadas_anual['UNFCCC (2012)'], width=bar_width,
+                      label='UNFCCC (2012)', edgecolor='black', hatch='//')
 
         # Adicionar valores formatados em cima das barras
-        for i, (v1, v2) in enumerate(zip(df_evitadas_anual['Proposta da Tese'], 
-                                         df_evitadas_anual['UNFCCC (2012)'])):
-            ax.text(i - bar_width/2, v1 + max(v1, v2)*0.01, 
-                    formatar_br(v1), ha='center', fontsize=9, fontweight='bold')
-            ax.text(i + bar_width/2, v2 + max(v1, v2)*0.01, 
-                    formatar_br(v2), ha='center', fontsize=9, fontweight='bold')
+        for rects in [bar1, bar2]:
+            for rect in rects:
+                height = rect.get_height()
+                ax.text(rect.get_x() + rect.get_width()/2., height + max(df_evitadas_anual['Proposta da Tese'].max(), df_evitadas_anual['UNFCCC (2012)'].max())*0.01,
+                        formatar_br(height),
+                        ha='center', va='bottom', fontsize=7, fontweight='bold')
+
 
         ax.set_xlabel('Ano')
         ax.set_ylabel('Emissões Evitadas (t CO₂eq)')
@@ -495,7 +510,7 @@ if st.session_state.get('run_simulation', False):
         ax.plot(df['Data'], df['Total_Vermi_tCO2eq_acum'], 'g-', label='Projeto (Vermicompostagem)', linewidth=2)
         ax.fill_between(df['Data'], df['Total_Vermi_tCO2eq_acum'], df['Total_Aterro_tCO2eq_acum'],
                         color='skyblue', alpha=0.5, label='Emissões Evitadas')
-        ax.set_title('Redução de Emissões em {} Anos'.format(anos_simulacao))
+        ax.set_title(f'Redução de Emissões em {anos_simulacao} Anos')
         ax.set_xlabel('Ano')
         ax.set_ylabel('tCO₂eq Acumulado')
         ax.legend()
@@ -506,3 +521,61 @@ if st.session_state.get('run_simulation', False):
 
         # 9. Análise de Sensibilidade Global (Sobol) - PROPOSTA DA TESE
         st.subheader("Análise de Sensibilidade Global (Sobol) - Proposta da Tese")
+        
+        # 9.1. Definição do Problema (Parâmetros de Incerteza)
+        problem = {
+            'num_vars': 3,
+            'names': ['Umidade do Resíduo (U)', 'Temperatura Média (T)', 'Carbono Orgânico Degradável (DOC)'],
+            'bounds': [
+                [0.70, 0.90], # Umidade (70% a 90%)
+                [15, 35],     # Temperatura (15ºC a 35ºC)
+                [0.10, 0.20]  # DOC (10% a 20%)
+            ]
+        }
+        
+        # 9.2. Geração das Amostras
+        param_values = sample(problem, n_samples, calc_second_order=True)
+
+        # 9.3. Execução do Modelo em Paralelo
+        N_jobs = -1 # Usa todos os cores disponíveis
+        Y = np.array(
+            Parallel(n_jobs=N_jobs)(
+                delayed(executar_simulacao_completa)([p[0], p[1], p[2]]) for p in param_values
+            )
+        )
+
+        # 9.4. Análise de Sensibilidade
+        Si = analyze(problem, Y, calc_second_order=True, print_to_console=False)
+        
+        df_sobol = pd.DataFrame({
+            'Parâmetro': problem['names'],
+            'Primeira Ordem (S1)': Si['S1'],
+            'Total (ST)': Si['ST']
+        })
+        
+        df_sobol_display = df_sobol.copy()
+        df_sobol_display['Primeira Ordem (S1)'] = df_sobol_display['Primeira Ordem (S1)'].apply(lambda x: f"{x:,.3f}".replace(".", ","))
+        df_sobol_display['Total (ST)'] = df_sobol_display['Total (ST)'].apply(lambda x: f"{x:,.3f}".replace(".", ","))
+
+        st.dataframe(df_sobol_display, hide_index=True)
+
+        # 9.5. Visualização (Gráfico de barras)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        
+        x_pos = np.arange(len(df_sobol['Parâmetro']))
+        width = 0.35
+
+        ax.bar(x_pos - width/2, df_sobol['Primeira Ordem (S1)'], width, label='Primeira Ordem ($S_1$)', edgecolor='black')
+        ax.bar(x_pos + width/2, df_sobol['Total (ST)'], width, label='Total ($S_T$)', edgecolor='black', hatch='x')
+
+        ax.set_ylabel('Índice de Sensibilidade')
+        ax.set_title('Índices de Sobol para Redução de Emissões (tCO₂eq)')
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(df_sobol['Parâmetro'], rotation=0, ha="center")
+        ax.legend()
+        ax.grid(axis='y', linestyle='--', alpha=0.7)
+        ax.set_ylim(0, 1.05)
+        st.pyplot(fig)
+
+    # 10. Resetar o estado após a execução
+    st.session_state.run_simulation = False
