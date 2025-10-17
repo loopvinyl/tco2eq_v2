@@ -32,6 +32,37 @@ plt.rcParams['figure.dpi'] = 150
 plt.rcParams['font.size'] = 10
 sns.set_style("whitegrid")
 
+# =============================================================================
+# INICIALIZAÇÃO DA SESSION STATE
+# =============================================================================
+
+# Inicializar todas as variáveis de session state necessárias
+def inicializar_session_state():
+    if 'preco_carbono' not in st.session_state:
+        st.session_state.preco_carbono = 85.50
+    if 'moeda_carbono' not in st.session_state:
+        st.session_state.moeda_carbono = "€"
+    if 'taxa_cambio' not in st.session_state:
+        st.session_state.taxa_cambio = 5.50
+    if 'moeda_real' not in st.session_state:
+        st.session_state.moeda_real = "R$"
+    if 'cotacao_atualizada' not in st.session_state:
+        st.session_state.cotacao_atualizada = False
+    if 'run_simulation' not in st.session_state:
+        st.session_state.run_simulation = False
+    
+    # Inicializar ano_contrato com o ano atual
+    if 'ano_contrato' not in st.session_state:
+        ano_atual = datetime.now().year
+        mes_atual = datetime.now().month
+        if mes_atual >= 9:
+            st.session_state.ano_contrato = ano_atual + 1
+        else:
+            st.session_state.ano_contrato = ano_atual
+
+# Chamar a inicialização
+inicializar_session_state()
+
 # Título do aplicativo
 st.title("Simulador de Emissões de tCO₂eq")
 st.markdown("""
@@ -173,19 +204,14 @@ def exibir_cotacao_carbono():
             
             st.session_state.preco_carbono = preco_carbono
             st.session_state.moeda_carbono = moeda
-            st.session_state.contrato_info = contrato_info
             st.session_state.taxa_cambio = preco_euro
             st.session_state.moeda_real = moeda_real
-            st.session_state.ano_contrato = ano_contrato  # Armazena o ano atual
+            st.session_state.ano_contrato = ano_contrato  # Atualiza o ano atual
     else:
-        # Valores padrão iniciais
-        if 'preco_carbono' not in st.session_state:
-            st.session_state.preco_carbono = 85.50
-            st.session_state.moeda_carbono = "€"
-            st.session_state.contrato_info = f"EUA Carbon Dec {ano_contrato}"
-            st.session_state.taxa_cambio = 5.50
-            st.session_state.moeda_real = "R$"
-            st.session_state.ano_contrato = ano_contrato  # Armazena o ano atual
+        # Atualizar o ano_contrato se necessário (para caso o ano tenha mudado)
+        ticker_atual, ano_contrato_atual = obter_ticker_carbono_atual()
+        if st.session_state.ano_contrato != ano_contrato_atual:
+            st.session_state.ano_contrato = ano_contrato_atual
 
     # Exibe cotação atual do carbono
     st.sidebar.metric(
