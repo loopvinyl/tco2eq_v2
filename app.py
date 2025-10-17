@@ -15,11 +15,14 @@ try:
     from SALib.sample.sobol import sample
     from SALib.analyze.sobol import analyze
 except ImportError:
-    st.error("ERRO: A biblioteca SALib não foi encontrada. Por favor, certifique-se de que está incluída no seu requirements.txt e instalada para executar a Análise de Sensibilidade.")
-    # Define funções placeholder para evitar que o script quebre totalmente se SALib não estiver disponível
-    def sample(*args, **kwargs): return np.array([[0.5, 0.5, 0.5]]) # Retorna um array simples
+    st.error("ERRO: A biblioteca SALib não foi encontrada. A Análise de Sensibilidade Global será desabilitada. Por favor, instale-a via 'pip install SALib'.")
+    # Define funções placeholder para evitar que o script quebre totalmente
+    def sample(*args, **kwargs): return np.array([[0.5, 0.5, 0.5]])
     def analyze(*args, **kwargs): return {'S1': np.array([0.0, 0.0, 0.0]), 'ST': np.array([0.0, 0.0, 0.0])}
-    
+    SALIB_AVAILABLE = False
+else:
+    SALIB_AVAILABLE = True
+
 # Configurações iniciais
 np.random.seed(50)  # Garante reprodutibilidade
 st.set_page_config(page_title="Simulador de Emissões CO₂eq", layout="wide")
@@ -45,8 +48,6 @@ aterro sanitário vs. vermicompostagem (Contexto: Proposta da Tese) e aterro san
 def get_carbon_futures_quote():
     """
     Simula a obtenção da cotação do futuro de carbono (EUA Dec 25).
-    
-    NOTA: Usamos um valor de placeholder para fins de simulação.
     """
     
     # Preço do Carbono (EUA Dec 25 - Exemplo em EUR/tCO2eq)
@@ -131,8 +132,6 @@ with st.sidebar:
     
     if st.button("Executar Simulação"):
         st.session_state.run_simulation = True
-    # else:
-    #     st.session_state.run_simulation = False # Mantém True até o próximo clique
 
 # ==============================================================================
 # CONSTANTES E PARÂMETROS FIXOS
@@ -235,9 +234,8 @@ def calcular_emissoes_aterro(params, dias_simulacao=dias):
 
     fator_umid = (1 - umidade_val) / (1 - 0.55)
     f_aberto = np.clip((massa_exposta_kg / residuos_kg_dia) * (h_exposta / 24), 0.0, 1.0)
-    # docf_calc não é usado diretamente, mas sim T e DOC.
-    # docf_calc = 0.0147 * temp_val + 0.28 
-
+    
+    # Cálculo do Potencial de CH4 (Modelo IPCC de 1ª Ordem - FOD)
     potencial_CH4_por_kg = doc_val * (0.0147 * temp_val + 0.28) * MCF * F * (16/12) * (1 - Ri) * (1 - OX)
     potencial_CH4_lote_diario = residuos_kg_dia * potencial_CH4_por_kg
 
@@ -247,6 +245,7 @@ def calcular_emissoes_aterro(params, dias_simulacao=dias):
     emissoes_CH4 = fftconvolve(entradas_diarias, kernel_ch4, mode='full')[:dias_simulacao]
     emissoes_CH4 *= potencial_CH4_lote_diario
 
+    # Cálculo do N2O (Modelo UNFCCC)
     E_aberto = 1.91
     E_fechado = 2.15
     E_medio = f_aberto * E_aberto + (1 - f_aberto) * E_fechado
@@ -256,6 +255,7 @@ def calcular_emissoes_aterro(params, dias_simulacao=dias):
     kernel_n2o = np.array([PERFIL_N2O.get(d, 0) for d in range(1, 6)], dtype=float)
     emissoes_N2O = fftconvolve(np.full(dias_simulacao, emissoes_N2O_base), kernel_n2o, mode='full')[:dias_simulacao]
 
+    # Emissões Pré-descarte
     O2_concentracao = 21
     emissoes_CH4_pre_descarte_kg, emissoes_N2O_pre_descarte_kg = calcular_emissoes_pre_descarte(O2_concentracao, dias_simulacao)
 
@@ -268,13 +268,14 @@ def calcular_emissoes_vermi(params, dias_simulacao=dias):
     umidade_val, temp_val, doc_val = params
     fracao_ms = 1 - umidade_val
     
-    # Usando valores fixos
+    # Cálculo CH4 e N2O (Vermicompostagem)
     ch4_total_por_lote = residuos_kg_dia * (TOC_YANG * CH4_C_FRAC_YANG * (16/12) * fracao_ms)
     n2o_total_por_lote = residuos_kg_dia * (TN_YANG * N2O_N_FRAC_YANG * (44/28) * fracao_ms)
 
     emissoes_CH4 = np.zeros(dias_simulacao)
     emissoes_N2O = np.zeros(dias_simulacao)
 
+    # Aplicação do perfil temporal (Convolução manual)
     for dia_entrada in range(dias_simulacao):
         for dia_compostagem in range(len(PERFIL_CH4_VERMI)):
             dia_emissao = dia_entrada + dia_compostagem
@@ -288,13 +289,14 @@ def calcular_emissoes_compostagem(params, dias_simulacao=dias, dias_compostagem=
     umidade, T, DOC = params
     fracao_ms = 1 - umidade
     
-    # Usando valores fixos
+    # Cálculo CH4 e N2O (Compostagem Termofílica - UNFCCC)
     ch4_total_por_lote = residuos_kg_dia * (TOC_YANG * CH4_C_FRAC_THERMO * (16/12) * fracao_ms)
     n2o_total_por_lote = residuos_kg_dia * (TN_YANG * N2O_N_FRAC_THERMO * (44/28) * fracao_ms)
 
     emissoes_CH4 = np.zeros(dias_simulacao)
     emissoes_N2O = np.zeros(dias_simulacao)
 
+    # Aplicação do perfil temporal (Convolução manual)
     for dia_entrada in range(dias_simulacao):
         for dia_compostagem in range(len(PERFIL_CH4_THERMO)):
             dia_emissao = dia_entrada + dia_compostagem
@@ -307,10 +309,7 @@ def calcular_emissoes_compostagem(params, dias_simulacao=dias, dias_compostagem=
 def executar_simulacao_completa(parametros):
     umidade, T, DOC = parametros
     
-    # Aterro (Base)
     ch4_aterro, n2o_aterro = calcular_emissoes_aterro([umidade, T, DOC])
-    
-    # Vermicompostagem (Tese - Projeto)
     ch4_vermi, n2o_vermi = calcular_emissoes_vermi([umidade, T, DOC])
 
     total_aterro_tco2eq = (ch4_aterro * GWP_CH4_20 + n2o_aterro * GWP_N2O_20) / 1000
@@ -426,16 +425,17 @@ if st.session_state.get('run_simulation', False):
             st.metric("Total de emissões evitadas (UNFCCC)", f"{formatar_br(total_evitado_unfccc)} tCO₂eq")
             
         # ==============================================================================
-        # NOVO BLOCO DE ANÁLISE DE COTAÇÃO (CORRIGIDO)
+        # BLOCO DE ANÁLISE DE COTAÇÃO (CORRIGIDO com rf""" para LaTeX)
         # ==============================================================================
         st.header("Análise de Valor Financeiro dos Créditos de Carbono")
         
-        st.markdown(f"""
+        # Correção do SyntaxError usando rf"""
+        st.markdown(rf"""
         **Cotação Utilizada (Placeholder):**
         * **Contrato:** European Union Allowance (EUA) Futuro - Dezembro 2025
-        * **Preço do Carbono:** $\\text{{EUR }}{formatar\_br(carbon\_price\_eur)} / \\text{{tCO}}_2\\text{{eq}}$ 
-        * **Câmbio (EUR/BRL):** $\\text{{R\$ }}{formatar\_br(eur\_brl\_rate)}$
-        * **Valor Equivalente (BRL):** $\\text{{R\$ }}{formatar\_br(carbon\_price\_brl)} / \\text{{tCO}}_2\\text{{eq}}$
+        * **Preço do Carbono:** $\text{{EUR }}{formatar\_br(carbon\_price\_eur)} / \text{{tCO}}_2\text{{eq}}$ 
+        * **Câmbio (EUR/BRL):** $\text{{R\$ }}{formatar\_br(eur\_brl\_rate)}$
+        * **Valor Equivalente (BRL):** $\text{{R\$ }}{formatar\_br(carbon\_price\_brl)} / \text{{tCO}}_2\text{{eq}}$
         
         *Nota: Esta cotação é um **placeholder** (valor fixo) e não em tempo real, pois dados de futuros de carbono não são tipicamente acessíveis via yfinance.*
         """)
@@ -520,62 +520,66 @@ if st.session_state.get('run_simulation', False):
         st.pyplot(fig)
 
         # 9. Análise de Sensibilidade Global (Sobol) - PROPOSTA DA TESE
-        st.subheader("Análise de Sensibilidade Global (Sobol) - Proposta da Tese")
-        
-        # 9.1. Definição do Problema (Parâmetros de Incerteza)
-        problem = {
-            'num_vars': 3,
-            'names': ['Umidade do Resíduo (U)', 'Temperatura Média (T)', 'Carbono Orgânico Degradável (DOC)'],
-            'bounds': [
-                [0.70, 0.90], # Umidade (70% a 90%)
-                [15, 35],     # Temperatura (15ºC a 35ºC)
-                [0.10, 0.20]  # DOC (10% a 20%)
-            ]
-        }
-        
-        # 9.2. Geração das Amostras
-        param_values = sample(problem, n_samples, calc_second_order=True)
+        if SALIB_AVAILABLE:
+            st.subheader("Análise de Sensibilidade Global (Sobol) - Proposta da Tese")
+            
+            # 9.1. Definição do Problema (Parâmetros de Incerteza)
+            problem = {
+                'num_vars': 3,
+                'names': ['Umidade do Resíduo (U)', 'Temperatura Média (T)', 'Carbono Orgânico Degradável (DOC)'],
+                'bounds': [
+                    [0.70, 0.90], # Umidade (70% a 90%)
+                    [15, 35],     # Temperatura (15ºC a 35ºC)
+                    [0.10, 0.20]  # DOC (10% a 20%)
+                ]
+            }
+            
+            # 9.2. Geração das Amostras
+            param_values = sample(problem, n_samples, calc_second_order=True)
 
-        # 9.3. Execução do Modelo em Paralelo
-        N_jobs = -1 # Usa todos os cores disponíveis
-        Y = np.array(
-            Parallel(n_jobs=N_jobs)(
-                delayed(executar_simulacao_completa)([p[0], p[1], p[2]]) for p in param_values
+            # 9.3. Execução do Modelo em Paralelo
+            N_jobs = -1 # Usa todos os cores disponíveis
+            Y = np.array(
+                Parallel(n_jobs=N_jobs)(
+                    delayed(executar_simulacao_completa)([p[0], p[1], p[2]]) for p in param_values
+                )
             )
-        )
 
-        # 9.4. Análise de Sensibilidade
-        Si = analyze(problem, Y, calc_second_order=True, print_to_console=False)
-        
-        df_sobol = pd.DataFrame({
-            'Parâmetro': problem['names'],
-            'Primeira Ordem (S1)': Si['S1'],
-            'Total (ST)': Si['ST']
-        })
-        
-        df_sobol_display = df_sobol.copy()
-        df_sobol_display['Primeira Ordem (S1)'] = df_sobol_display['Primeira Ordem (S1)'].apply(lambda x: f"{x:,.3f}".replace(".", ","))
-        df_sobol_display['Total (ST)'] = df_sobol_display['Total (ST)'].apply(lambda x: f"{x:,.3f}".replace(".", ","))
+            # 9.4. Análise de Sensibilidade
+            Si = analyze(problem, Y, calc_second_order=True, print_to_console=False)
+            
+            df_sobol = pd.DataFrame({
+                'Parâmetro': problem['names'],
+                'Primeira Ordem (S1)': Si['S1'],
+                'Total (ST)': Si['ST']
+            })
+            
+            df_sobol_display = df_sobol.copy()
+            df_sobol_display['Primeira Ordem (S1)'] = df_sobol_display['Primeira Ordem (S1)'].apply(lambda x: f"{x:,.3f}".replace(".", ","))
+            df_sobol_display['Total (ST)'] = df_sobol_display['Total (ST)'].apply(lambda x: f"{x:,.3f}".replace(".", ","))
 
-        st.dataframe(df_sobol_display, hide_index=True)
+            st.dataframe(df_sobol_display, hide_index=True)
 
-        # 9.5. Visualização (Gráfico de barras)
-        fig, ax = plt.subplots(figsize=(10, 6))
-        
-        x_pos = np.arange(len(df_sobol['Parâmetro']))
-        width = 0.35
+            # 9.5. Visualização (Gráfico de barras)
+            fig, ax = plt.subplots(figsize=(10, 6))
+            
+            x_pos = np.arange(len(df_sobol['Parâmetro']))
+            width = 0.35
 
-        ax.bar(x_pos - width/2, df_sobol['Primeira Ordem (S1)'], width, label='Primeira Ordem ($S_1$)', edgecolor='black')
-        ax.bar(x_pos + width/2, df_sobol['Total (ST)'], width, label='Total ($S_T$)', edgecolor='black', hatch='x')
+            ax.bar(x_pos - width/2, df_sobol['Primeira Ordem (S1)'], width, label='Primeira Ordem ($S_1$)', edgecolor='black')
+            ax.bar(x_pos + width/2, df_sobol['Total (ST)'], width, label='Total ($S_T$)', edgecolor='black', hatch='x')
 
-        ax.set_ylabel('Índice de Sensibilidade')
-        ax.set_title('Índices de Sobol para Redução de Emissões (tCO₂eq)')
-        ax.set_xticks(x_pos)
-        ax.set_xticklabels(df_sobol['Parâmetro'], rotation=0, ha="center")
-        ax.legend()
-        ax.grid(axis='y', linestyle='--', alpha=0.7)
-        ax.set_ylim(0, 1.05)
-        st.pyplot(fig)
+            ax.set_ylabel('Índice de Sensibilidade')
+            ax.set_title('Índices de Sobol para Redução de Emissões (tCO₂eq)')
+            ax.set_xticks(x_pos)
+            ax.set_xticklabels(df_sobol['Parâmetro'], rotation=0, ha="center")
+            ax.legend()
+            ax.grid(axis='y', linestyle='--', alpha=0.7)
+            ax.set_ylim(0, 1.05)
+            st.pyplot(fig)
+        else:
+            st.warning("A Análise de Sensibilidade Global (Sobol) não pode ser executada porque a biblioteca SALib não foi instalada.")
+
 
     # 10. Resetar o estado após a execução
     st.session_state.run_simulation = False
