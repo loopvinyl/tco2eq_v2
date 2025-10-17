@@ -718,19 +718,19 @@ if st.session_state.get('run_simulation', False):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
-                f"Preço Carbon Dec {ano_contrato} (Real)", 
+                f"Preço Carbon Dec {ano_contrato} (R$)", 
                 f"R$ {formatar_br(preco_carbono * taxa_cambio)}/tCO₂eq",
                 help="Preço do carbono convertido para Reais"
             )
         with col2:
             st.metric(
-                "Valor Tese (Real)", 
+                "Valor Tese (R$)", 
                 f"R$ {formatar_br(valor_tese_brl)}",
                 help=f"Baseado em {formatar_br(total_evitado_tese)} tCO₂eq evitadas"
             )
         with col3:
             st.metric(
-                "Valor UNFCCC (Real)", 
+                "Valor UNFCCC (R$)", 
                 f"R$ {formatar_br(valor_unfccc_brl)}",
                 help=f"Baseado em {formatar_br(total_evitado_unfccc)} tCO₂eq evitadas"
             )
