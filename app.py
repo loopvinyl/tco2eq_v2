@@ -11,7 +11,9 @@ import warnings
 from matplotlib.ticker import FuncFormatter
 from SALib.sample.sobol import sample
 from SALib.analyze.sobol import analyze
-import yfinance as yf  # Adicionando import para cotações
+
+# Importação condicional do yfinance (mantida, mas não utilizada para o futuro)
+# import yfinance as yf 
 
 np.random.seed(50)  # Garante reprodutibilidade
 
@@ -32,138 +34,33 @@ Esta ferramenta calcula as emissões de gases de efeito estufa para dois context
 aterro sanitário vs. vermicompostagem (Contexto: Proposta da Tese) e aterro sanitário vs. compostagem (Contexto: UNFCCC).
 """)
 
-# =============================================================================
-# FUNÇÕES DE COTAÇÃO AUTOMÁTICA DO CARBONO
-# =============================================================================
+# ==============================================================================
+# NOVA FUNÇÃO DE COTAÇÃO - USANDO PLACEHOLDER
+# ==============================================================================
 
-def obter_ticker_carbono_atual():
+def get_carbon_futures_quote():
     """
-    Determina automaticamente o ticker do contrato futuro de carbono mais relevante
-    """
-    ano_atual = datetime.now().year
-    mes_atual = datetime.now().month
+    Simula a obtenção da cotação do futuro de carbono (EUA Dec 25).
     
-    # Lógica: a partir de setembro, começa a migrar para o próximo ano
-    if mes_atual >= 9:
-        ano_contrato = ano_atual + 1
-    else:
-        ano_contrato = ano_atual
+    NOTA: O yfinance não suporta tickers de contratos futuros (como EUA-DEC25).
+    Usamos um valor de placeholder para fins de simulação.
+    """
     
-    # Formata o ano para 2 dígitos (25, 26, etc.)
-    ano_2_digitos = str(ano_contrato)[-2:]
+    # ----------------------------------------------------------------------
+    # AQUI ESTÁ A LINHA CHAVE QUE VOCÊ DEVE SUBSTITUIR POR UMA API REAL DE 
+    # DADOS QUANDO DISPONÍVEL (ex: Bloomberg, Refinitiv, ou uma API paga)
+    # ----------------------------------------------------------------------
+    carbon_price_eur = 85.50  # Exemplo: 85.50 Euros por tCO2eq
     
-    ticker = f'CO2Z{ano_2_digitos}.NYB'
-    return ticker, ano_contrato
-
-def obter_cotacao_carbono():
-    """
-    Obtém a cotação em tempo real do contrato futuro de carbono atual
-    """
-    try:
-        # Obtém o ticker atual automaticamente
-        ticker_atual, ano_contrato = obter_ticker_carbono_atual()
-        ano_2_digitos = str(ano_contrato)[-2:]
-        
-        simbolos_tentativas = [
-            ticker_atual,                    # Contrato atual (ex: CO2Z25.NYB)
-            f'CFIZ{ano_2_digitos}.NYB',     # Alternativa com mesmo ano
-            'CARBON-FUTURE',                # Genérico
-        ]
-        
-        cotacao = None
-        simbolo_usado = None
-        
-        for simbolo in simbolos_tentativas:
-            try:
-                ticker = yf.Ticker(simbolo)
-                hist = ticker.history(period='1d')
-                
-                if not hist.empty and not pd.isna(hist['Close'].iloc[-1]):
-                    cotacao = hist['Close'].iloc[-1]
-                    simbolo_usado = simbolo
-                    break
-                    
-            except Exception as e:
-                continue
-        
-        if cotacao is None:
-            # Fallback para dados de exemplo
-            st.warning(f"⚠️ Não foi possível obter cotação em tempo real. Usando valor de referência.")
-            return 85.50, "€", f"EUA Carbon Dec {ano_contrato} (Referência)", False
-        
-        return cotacao, "€", f"EUA Carbon Futures Dec {ano_contrato}", True
-        
-    except Exception as e:
-        st.error(f"Erro ao obter cotação: {str(e)}")
-        ano_atual = datetime.now().year
-        return 85.50, "€", f"EUA Carbon Dec {ano_atual} (Erro)", False
-
-def calcular_valor_creditos(emissoes_evitadas_tco2eq, preco_carbono_por_tonelada, moeda):
-    """
-    Calcula o valor financeiro das emissões evitadas baseado no preço do carbono
-    """
-    valor_total = emissoes_evitadas_tco2eq * preco_carbono_por_tonelada
-    return valor_total
-
-def exibir_cotacao_carbono():
-    """
-    Exibe a cotação do carbono com informações sobre o contrato atual
-    """
-    st.sidebar.header("💰 Mercado de Carbono")
+    # Taxa de câmbio EUR/BRL (placeholder simples, idealmente viria de uma API)
+    eur_brl_rate = 5.40 
     
-    if st.sidebar.button("🔄 Atualizar Cotação"):
-        st.session_state.cotacao_atualizada = True
+    return carbon_price_eur, eur_brl_rate
 
-    # Obtém informações do contrato atual
-    ticker_atual, ano_contrato = obter_ticker_carbono_atual()
-    
-    if st.session_state.get('cotacao_atualizada', False):
-        with st.sidebar.spinner('Obtendo cotação...'):
-            preco_carbono, moeda, contrato_info, sucesso = obter_cotacao_carbono()
-            
-            if sucesso:
-                st.sidebar.success(f"**{contrato_info}**")
-            else:
-                st.sidebar.info(f"**{contrato_info}**")
-            
-            st.session_state.preco_carbono = preco_carbono
-            st.session_state.moeda_carbono = moeda
-            st.session_state.contrato_info = contrato_info
-    else:
-        # Valores padrão iniciais
-        if 'preco_carbono' not in st.session_state:
-            st.session_state.preco_carbono = 85.50
-            st.session_state.moeda_carbono = "€"
-            st.session_state.contrato_info = f"EUA Carbon Dec {ano_contrato}"
+# ==============================================================================
+# FIM DA NOVA FUNÇÃO DE COTAÇÃO
+# ==============================================================================
 
-    # Exibe cotação atual
-    st.sidebar.metric(
-        label=f"Carbon Dec {ano_contrato} (tCO₂eq)",
-        value=f"{st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}",
-        help=f"Contrato futuro com vencimento Dezembro {ano_contrato}"
-    )
-    
-    # Informações adicionais
-    with st.sidebar.expander("📅 Sobre os Vencimentos"):
-        st.markdown(f"""
-        **Contrato Atual:** Dec {ano_contrato}
-        **Ticker:** `{ticker_atual}`
-        
-        **Ciclo dos Contratos:**
-        - Dez 2024 → CO2Z24.NYB
-        - Dez 2025 → CO2Z25.NYB  
-        - Dez 2026 → CO2Z26.NYB
-        - Dez 2027 → CO2Z27.NYB
-        
-        **Migração Automática:**
-        - A partir de Setembro: prepara para próximo ano
-        - O app ajusta automaticamente
-        - Sem necessidade de atualização manual
-        """)
-
-# =============================================================================
-# FUNÇÕES ORIGINAIS DO SEU SCRIPT
-# =============================================================================
 
 # Função para formatar números no padrão brasileiro
 def formatar_br(numero):
@@ -204,14 +101,7 @@ def br_format_5_dec(x, pos):
     """
     return f"{x:,.5f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# =============================================================================
-# SIDEBAR COM PARÂMETROS
-# =============================================================================
-
-# Seção de cotação do carbono
-exibir_cotacao_carbono()
-
-# Seção original de parâmetros
+# Sidebar para entrada de parâmetros
 with st.sidebar:
     st.header("Parâmetros de Entrada")
     
@@ -239,10 +129,7 @@ with st.sidebar:
     else:
         st.session_state.run_simulation = False
 
-# =============================================================================
-# PARÂMETROS FIXOS (DO CÓDIGO ORIGINAL)
-# =============================================================================
-
+# Parâmetros fixos (do código original)
 T = 25  # Temperatura média (ºC)
 DOC = 0.15  # Carbono orgânico degradável (fração)
 DOCf_val = 0.0147 * T + 0.28
@@ -332,7 +219,7 @@ PERFIL_CH4_THERMO = np.array([
     0.002, 0.002, 0.002, 0.002, 0.002,  # Dias 31-35
     0.001, 0.001, 0.001, 0.001, 0.001,  # Dias 36-40
     0.001, 0.001, 0.001, 0.001, 0.001,  # Dias 41-45
-    0.001, 0.001, 0.001, 0.001, 0.001   # Dias 46-50
+    0.001, 0.001, 0.001, 0.001, 0.001,   # Dias 46-50
 ])
 PERFIL_CH4_THERMO /= PERFIL_CH4_THERMO.sum()
 
@@ -350,10 +237,7 @@ PERFIL_N2O_THERMO = np.array([
 ])
 PERFIL_N2O_THERMO /= PERFIL_N2O_THERMO.sum()
 
-# =============================================================================
-# FUNÇÕES DE CÁLCULO (ADAPTADAS DO SCRIPT ANEXO)
-# =============================================================================
-
+# Funções de cálculo (adaptadas do script anexo)
 def ajustar_emissoes_pre_descarte(O2_concentracao):
     ch4_ajustado = CH4_pre_descarte_g_por_kg_dia
 
@@ -482,20 +366,16 @@ def executar_simulacao_unfccc(parametros):
     reducao_tco2eq = total_aterro_tco2eq.sum() - total_compost_tco2eq.sum()
     return reducao_tco2eq
 
-# =============================================================================
-# EXECUÇÃO DA SIMULAÇÃO
-# =============================================================================
-
 # Executar simulação quando solicitado
 if st.session_state.get('run_simulation', False):
     with st.spinner('Executando simulação...'):
-        # Executar modelo base
+        # 1. Executar modelo base
         params_base = [umidade, T, DOC]
 
         ch4_aterro_dia, n2o_aterro_dia = calcular_emissoes_aterro(params_base)
         ch4_vermi_dia, n2o_vermi_dia = calcular_emissoes_vermi(params_base)
 
-        # Construir DataFrame
+        # 2. Construir DataFrame
         df = pd.DataFrame({
             'Data': datas,
             'CH4_Aterro_kg_dia': ch4_aterro_dia,
@@ -514,7 +394,7 @@ if st.session_state.get('run_simulation', False):
         df['Total_Vermi_tCO2eq_acum'] = df['Total_Vermi_tCO2eq_dia'].cumsum()
         df['Reducao_tCO2eq_acum'] = df['Total_Aterro_tCO2eq_acum'] - df['Total_Vermi_tCO2eq_acum']
 
-        # Resumo anual
+        # 3. Resumo anual
         df['Year'] = df['Data'].dt.year
         df_anual_revisado = df.groupby('Year').agg({
             'Total_Aterro_tCO2eq_dia': 'sum',
@@ -529,7 +409,7 @@ if st.session_state.get('run_simulation', False):
             'Total_Vermi_tCO2eq_dia': 'Project emissions (t CO₂eq)',
         }, inplace=True)
 
-        # Cenário UNFCCC
+        # 4. Cenário UNFCCC
         ch4_compost_UNFCCC, n2o_compost_UNFCCC = calcular_emissoes_compostagem(
             params_base, dias_simulacao=dias, dias_compostagem=50
         )
@@ -555,76 +435,74 @@ if st.session_state.get('run_simulation', False):
         df_comp_anual_revisado['Cumulative reduction (t CO₂eq)'] = df_comp_anual_revisado['Emission reductions (t CO₂eq)'].cumsum()
         df_comp_anual_revisado.rename(columns={'Total_Compost_tCO2eq_dia': 'Project emissions (t CO₂eq)'}, inplace=True)
 
-        # =============================================================================
-        # EXIBIÇÃO DOS RESULTADOS COM COTAÇÃO DO CARBONO
-        # =============================================================================
+        # 5. Obter cotação e calcular valor financeiro
+        
+        # Obter cotação de Carbono (EUA Dec 25)
+        carbon_price_eur, eur_brl_rate = get_carbon_futures_quote()
+        carbon_price_brl = carbon_price_eur * eur_brl_rate
+        
+        # Calcular valor total e anual
+        total_evitado_tese = df['Reducao_tCO2eq_acum'].iloc[-1]
+        valor_financeiro_total = total_evitado_tese * carbon_price_brl
+        
+        # Calcular o valor evitado por ano (Proposta da Tese)
+        df_anual_revisado['Valor Financeiro Evitado (BRL/ano)'] = (
+            df_anual_revisado['Emission reductions (t CO₂eq)'] * carbon_price_brl
+        )
 
-        # Exibir resultados
+        # 6. Exibir resultados
         st.header("Resultados da Simulação")
         
-        # Obter valores totais
-        total_evitado_tese = df['Reducao_tCO2eq_acum'].iloc[-1]
-        total_evitado_unfccc = df_comp_anual_revisado['Cumulative reduction (t CO₂eq)'].iloc[-1]
-        
-        # Obter preço do carbono da session state
-        preco_carbono = st.session_state.preco_carbono
-        moeda = st.session_state.moeda_carbono
-        
-        # Calcular valores financeiros
-        valor_tese = calcular_valor_creditos(total_evitado_tese, preco_carbono, moeda)
-        valor_unfccc = calcular_valor_creditos(total_evitado_unfccc, preco_carbono, moeda)
-        
-        # NOVA SEÇÃO: VALOR FINANCEIRO DAS EMISSÕES EVITADAS
-        st.subheader("💰 Valor Financeiro das Emissões Evitadas")
-        
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric(
-                "Preço Carbon Dec 25", 
-                f"{moeda} {preco_carbono:.2f}/tCO₂eq",
-                help="Cotação do contrato futuro para Dezembro 2025"
-            )
-        with col2:
-            st.metric(
-                "Valor Proposta da Tese", 
-                f"{moeda} {formatar_br(valor_tese)}",
-                help=f"Baseado em {formatar_br(total_evitado_tese)} tCO₂eq evitadas"
-            )
-        with col3:
-            st.metric(
-                "Valor Metodologia UNFCCC", 
-                f"{moeda} {formatar_br(valor_unfccc)}",
-                help=f"Baseado em {formatar_br(total_evitado_unfccc)} tCO₂eq evitadas"
-            )
-        
-        # Explicação sobre compra e venda
-        with st.expander("💡 Como funciona a comercialização no mercado de carbono?"):
-            st.markdown(f"""
-            **Para o Carbon Dec 25 (Preço atual: {moeda} {preco_carbono:.2f}/tCO₂eq):**
-            
-            **📈 Comprar créditos:** Adquirir direitos de emissão para compensação
-            - Preço por tCO₂eq: **{moeda} {preco_carbono:.2f}**
-            - Custo para compensar {formatar_br(total_evitado_tese)} tCO₂eq: **{moeda} {formatar_br(valor_tese)}**
-            
-            **📉 Vender créditos:** Comercializar suas reduções de emissão  
-            - Receita por vender {formatar_br(total_evitado_tese)} tCO₂eq: **{moeda} {formatar_br(valor_tese)}**
-            - Valor potencial do projeto: **{moeda} {formatar_br(valor_tese)}**
-            
-            **Contrato Carbon Dec 25:**
-            - Cada contrato = 1.000 tCO₂eq
-            - Vencimento: Dezembro 2025
-            - Mercado: ICE Exchange
-            - Moeda: Euros (€)
-            """)
-        
-        # Métricas originais
         col1, col2 = st.columns(2)
         with col1:
             st.metric("Total de emissões evitadas (Tese)", f"{formatar_br(total_evitado_tese)} tCO₂eq")
         with col2:
+            total_evitado_unfccc = df_comp_anual_revisado['Cumulative reduction (t CO₂eq)'].iloc[-1]
             st.metric("Total de emissões evitadas (UNFCCC)", f"{formatar_br(total_evitado_unfccc)} tCO₂eq")
+            
+        # ==============================================================================
+        # NOVO BLOCO DE ANÁLISE DE COTAÇÃO
+        # ==============================================================================
+        st.header("Análise de Valor Financeiro dos Créditos de Carbono")
+        
+        st.markdown(f"""
+        **Cotação Utilizada (Placeholder):**
+        * **Contrato:** European Union Allowance (EUA) Futuro - Dezembro 2025
+        * **Preço do Carbono:** $\\text{{\\text{€ }}}{formatar\_br(carbon\_price\_eur)} / \\text{{tCO}}_2\\text{{eq}}$
+        * **Câmbio (EUR/BRL):** $\\text{{R\$ }}{formatar\_br(eur\_brl\_rate)}$
+        * **Valor Equivalente (BRL):** $\\text{{R\$ }}{formatar\_br(carbon\_price\_brl)} / \\text{{tCO}}_2\\text{{eq}}$
+        
+        *Nota: Esta cotação é um **placeholder** (valor fixo) e não em tempo real, pois dados de futuros de carbono não são tipicamente acessíveis via yfinance.*
+        """)
 
-        # Gráfico comparativo
+        col_val1, col_val2 = st.columns(2)
+        with col_val1:
+            st.metric(
+                "Valor Financeiro Total de Créditos (Tese)", 
+                f"R$ {formatar_br(valor_financeiro_total)}",
+                help=f"Baseado no total evitado ({formatar_br(total_evitado_tese)} tCO₂eq) e na cotação R$ {formatar_br(carbon_price_brl)}/tCO₂eq."
+            )
+            
+        with col_val2:
+             st.metric(
+                "Valor Financeiro Anual Médio (Tese)", 
+                f"R$ {formatar_br(df_anual_revisado['Valor Financeiro Evitado (BRL/ano)'].mean())}",
+                help=f"Média anual do valor financeiro das reduções de emissões para o período de {anos_simulacao} anos."
+            )
+
+        # Tabela com o valor anual
+        st.subheader("Valor Financeiro Anual (Proposta da Tese)")
+        df_valor_anual = df_anual_revisado[['Year', 'Emission reductions (t CO₂eq)', 'Valor Financeiro Evitado (BRL/ano)']].copy()
+        df_valor_anual['Emission reductions (t CO₂eq)'] = df_valor_anual['Emission reductions (t CO₂eq)'].apply(formatar_br)
+        df_valor_anual['Valor Financeiro Evitado (BRL/ano)'] = df_valor_anual['Valor Financeiro Evitado (BRL/ano)'].apply(lambda x: f"R$ {formatar_br(x)}")
+        
+        st.dataframe(df_valor_anual, hide_index=True)
+        # ==============================================================================
+        # FIM DO NOVO BLOCO DE ANÁLISE DE COTAÇÃO
+        # ==============================================================================
+
+
+        # 7. Gráfico comparativo
         st.subheader("Comparação Anual das Emissões Evitadas")
         df_evitadas_anual = pd.DataFrame({
             'Year': df_anual_revisado['Year'],
@@ -663,7 +541,7 @@ if st.session_state.get('run_simulation', False):
         ax.grid(axis='y', linestyle='--', alpha=0.7)
         st.pyplot(fig)
 
-        # Gráfico de redução acumulada
+        # 8. Gráfico de redução acumulada
         st.subheader("Redução de Emissões Acumulada")
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(df['Data'], df['Total_Aterro_tCO2eq_acum'], 'r-', label='Cenário Base (Aterro)', linewidth=2)
@@ -679,202 +557,5 @@ if st.session_state.get('run_simulation', False):
 
         st.pyplot(fig)
 
-        # Análise de Sensibilidade Global (Sobol) - PROPOSTA DA TESE
+        # 9. Análise de Sensibilidade Global (Sobol) - PROPOSTA DA TESE
         st.subheader("Análise de Sensibilidade Global (Sobol) - Proposta da Tese")
-        br_formatter_sobol = FuncFormatter(br_format)
-
-        np.random.seed(50)  
-        
-        problem_tese = {
-            'num_vars': 3,
-            'names': ['umidade', 'T', 'DOC'],
-            'bounds': [
-                [0.5, 0.85],         # umidade
-                [25.0, 45.0],       # temperatura
-                [0.15, 0.50],       # doc
-            ]
-        }
-
-        param_values_tese = sample(problem_tese, n_samples)
-        results_tese = Parallel(n_jobs=-1)(delayed(executar_simulacao_completa)(params) for params in param_values_tese)
-        Si_tese = analyze(problem_tese, np.array(results_tese), print_to_console=False)
-        
-        sensibilidade_df_tese = pd.DataFrame({
-            'Parâmetro': problem_tese['names'],
-            'S1': Si_tese['S1'],
-            'ST': Si_tese['ST']
-        }).sort_values('ST', ascending=False)
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(x='ST', y='Parâmetro', data=sensibilidade_df_tese, palette='viridis', ax=ax)
-        ax.set_title('Sensibilidade Global dos Parâmetros (Índice Sobol Total) - Proposta da Tese')
-        ax.set_xlabel('Índice ST')
-        ax.set_ylabel('')
-        ax.grid(axis='x', linestyle='--', alpha=0.7)
-        ax.xaxis.set_major_formatter(br_formatter_sobol) # Adiciona formatação ao eixo x
-        st.pyplot(fig)
-
-        # Análise de Sensibilidade Global (Sobol) - CENÁRIO UNFCCC
-        st.subheader("Análise de Sensibilidade Global (Sobol) - Cenário UNFCCC")
-
-        np.random.seed(50)
-        
-        problem_unfccc = {
-            'num_vars': 3,
-            'names': ['umidade', 'T', 'DOC'],
-            'bounds': [
-                [0.5, 0.85],  # Umidade
-                [25, 45],     # Temperatura
-                [0.15, 0.50], # DOC
-            ]
-        }
-
-        param_values_unfccc = sample(problem_unfccc, n_samples)
-        results_unfccc = Parallel(n_jobs=-1)(delayed(executar_simulacao_unfccc)(params) for params in param_values_unfccc)
-        Si_unfccc = analyze(problem_unfccc, np.array(results_unfccc), print_to_console=False)
-        
-        sensibilidade_df_unfccc = pd.DataFrame({
-            'Parâmetro': problem_unfccc['names'],
-            'S1': Si_unfccc['S1'],
-            'ST': Si_unfccc['ST']
-        }).sort_values('ST', ascending=False)
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.barplot(x='ST', y='Parâmetro', data=sensibilidade_df_unfccc, palette='viridis', ax=ax)
-        ax.set_title('Sensibilidade Global dos Parâmetros (Índice Sobol Total) - Cenário UNFCCC')
-        ax.set_xlabel('Índice ST')
-        ax.set_ylabel('')
-        ax.grid(axis='x', linestyle='--', alpha=0.7)
-        ax.xaxis.set_major_formatter(br_formatter_sobol) # Adiciona formatação ao eixo x
-        st.pyplot(fig)
-
-        # Análise de Incerteza (Monte Carlo) - PROPOSTA DA TESE
-        st.subheader("Análise de Incerteza (Monte Carlo) - Proposta da Tese")
-
-        
-        def gerar_parametros_mc_tese(n):
-            np.random.seed(50)
-            umidade_vals = np.random.uniform(0.75, 0.90, n)
-            temp_vals = np.random.normal(25, 3, n)
-            doc_vals = np.random.triangular(0.12, 0.15, 0.18, n)
-            
-            return umidade_vals, temp_vals, doc_vals
-
-        umidade_vals, temp_vals, doc_vals = gerar_parametros_mc_tese(n_simulations)
-        
-        results_mc_tese = []
-        for i in range(n_simulations):
-            params_tese = [umidade_vals[i], temp_vals[i], doc_vals[i]]
-            results_mc_tese.append(executar_simulacao_completa(params_tese))
-
-        results_array_tese = np.array(results_mc_tese)
-        media_tese = np.mean(results_array_tese)
-        intervalo_95_tese = np.percentile(results_array_tese, [2.5, 97.5])
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.histplot(results_array_tese, kde=True, bins=30, color='skyblue', ax=ax)
-        ax.axvline(media_tese, color='red', linestyle='--', label=f'Média: {formatar_br(media_tese)} tCO₂eq')
-        ax.axvline(intervalo_95_tese[0], color='green', linestyle=':', label='IC 95%')
-        ax.axvline(intervalo_95_tese[1], color='green', linestyle=':')
-        ax.set_title('Distribuição das Emissões Evitadas (Simulação Monte Carlo) - Proposta da Tese')
-        ax.set_xlabel('Emissões Evitadas (tCO₂eq)')
-        ax.set_ylabel('Frequência')
-        ax.legend()
-        ax.grid(alpha=0.3)
-        ax.xaxis.set_major_formatter(br_formatter)
-        st.pyplot(fig)
-
-        # Análise de Incerteza (Monte Carlo) - CENÁRIO UNFCCC
-        st.subheader("Análise de Incerteza (Monte Carlo) - Cenário UNFCCC")
-        
-        def gerar_parametros_mc_unfccc(n):
-            np.random.seed(50)
-            umidade_vals = np.random.uniform(0.75, 0.90, n)
-            temp_vals = np.random.normal(25, 3, n)
-            doc_vals = np.random.triangular(0.12, 0.15, 0.18, n)
-            
-            return umidade_vals, temp_vals, doc_vals
-
-        umidade_vals, temp_vals, doc_vals = gerar_parametros_mc_unfccc(n_simulations)
-        
-        results_mc_unfccc = []
-        for i in range(n_simulations):
-            params_unfccc = [umidade_vals[i], temp_vals[i], doc_vals[i]]
-            results_mc_unfccc.append(executar_simulacao_unfccc(params_unfccc))
-
-        results_array_unfccc = np.array(results_mc_unfccc)
-        media_unfccc = np.mean(results_array_unfccc)
-        intervalo_95_unfccc = np.percentile(results_array_unfccc, [2.5, 97.5])
-
-        fig, ax = plt.subplots(figsize=(10, 6))
-        sns.histplot(results_array_unfccc, kde=True, bins=30, color='coral', ax=ax)
-        ax.axvline(media_unfccc, color='red', linestyle='--', label=f'Média: {formatar_br(media_unfccc)} tCO₂eq')
-        ax.axvline(intervalo_95_unfccc[0], color='green', linestyle=':', label='IC 95%')
-        ax.axvline(intervalo_95_unfccc[1], color='green', linestyle=':')
-        ax.set_title('Distribuição das Emissões Evitadas (Simulação Monte Carlo) - Cenário UNFCCC')
-        ax.set_xlabel('Emissões Evitadas (tCO₂eq)')
-        ax.set_ylabel('Frequência')
-        ax.legend()
-        ax.grid(alpha=0.3)
-        ax.xaxis.set_major_formatter(br_formatter)
-        st.pyplot(fig)
-
-        # Análise Estatística de Comparação
-        st.subheader("Análise Estatística de Comparação")
-        
-        # Teste de normalidade para as diferenças
-        diferencas = results_array_tese - results_array_unfccc
-        _, p_valor_normalidade_diff = stats.normaltest(diferencas)
-        st.write(f"Teste de normalidade das diferenças (p-value): **{p_valor_normalidade_diff:.5f}**")
-
-        # Teste T pareado
-        ttest_pareado, p_ttest_pareado = stats.ttest_rel(results_array_tese, results_array_unfccc)
-        st.write(f"Teste T pareado: Estatística t = **{ttest_pareado:.5f}**, P-valor = **{p_ttest_pareado:.5f}**")
-
-        # Teste de Wilcoxon para amostras pareadas
-        wilcoxon_stat, p_wilcoxon = stats.wilcoxon(results_array_tese, results_array_unfccc)
-        st.write(f"Teste de Wilcoxon (pareado): Estatística = **{wilcoxon_stat:.5f}**, P-valor = **{p_wilcoxon:.5f}**")
-
-        # Tabela de resultados anuais - Proposta da Tese
-        st.subheader("Resultados Anuais - Proposta da Tese")
-
-        # Criar uma cópia para formatação
-        df_anual_formatado = df_anual_revisado.copy()
-        for col in df_anual_formatado.columns:
-            if col != 'Year':
-                df_anual_formatado[col] = df_anual_formatado[col].apply(formatar_br)
-
-        st.dataframe(df_anual_formatado)
-
-        # Tabela de resultados anuais - Metodologia UNFCCC
-        st.subheader("Resultados Anuais - Metodologia UNFCCC")
-
-        # Criar uma cópia para formatação
-        df_comp_formatado = df_comp_anual_revisado.copy()
-        for col in df_comp_formatado.columns:
-            if col != 'Year':
-                df_comp_formatado[col] = df_comp_formatado[col].apply(formatar_br)
-
-        st.dataframe(df_comp_formatado)
-
-else:
-    st.info("Ajuste os parâmetros na barra lateral e clique em 'Executar Simulação' para ver os resultados.")
-
-# Rodapé
-st.markdown("---")
-st.markdown("""
-**Referências por Cenário:**
-
-**Cenário de Baseline (Aterro Sanitário):**
-- IPCC (2006). Guidelines for National Greenhouse Gas Inventories.
-- UNFCCC (2016). Tool to determine methane emissions from solid waste disposal sites.
-- Wang et al. (2017). Nitrous oxide emissions from landfills.
-- Feng et al. (2020). Emissions from pre-disposal organic waste.
-
-**Proposta da Tese (Vermicompostagem):**
-- Yang et al. (2017). Greenhouse gas emissions from vermicomposting.
-
-**Cenário UNFCCC (Compostagem):**
-- UNFCCC (2012). AMS-III.F - Methodology for compostage.
-- Yang et al. (2017). Greenhouse gas emissions from thermophilic composting.
-""")
