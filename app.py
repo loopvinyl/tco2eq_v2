@@ -67,7 +67,7 @@ def obter_cotacao_carbono():
     Obtém a cotação em tempo real do contrato futuro de carbono atual
     """
     if not YFINANCE_AVAILABLE:
-        ano_contrato = datetime.now().year
+        ticker_atual, ano_contrato = obter_ticker_carbono_atual()
         return 85.50, "€", f"EUA Carbon Dec {ano_contrato} (yfinance não disponível)", False
     
     try:
@@ -104,8 +104,8 @@ def obter_cotacao_carbono():
         return cotacao, "€", f"EUA Carbon Futures Dec {ano_contrato}", True
         
     except Exception as e:
-        ano_atual = datetime.now().year
-        return 85.50, "€", f"EUA Carbon Dec {ano_atual} (Erro: {str(e)})", False
+        ticker_atual, ano_contrato = obter_ticker_carbono_atual()
+        return 85.50, "€", f"EUA Carbon Dec {ano_contrato} (Erro: {str(e)})", False
 
 def obter_cotacao_euro_real():
     """
@@ -176,6 +176,7 @@ def exibir_cotacao_carbono():
             st.session_state.contrato_info = contrato_info
             st.session_state.taxa_cambio = preco_euro
             st.session_state.moeda_real = moeda_real
+            st.session_state.ano_contrato = ano_contrato  # Armazena o ano atual
     else:
         # Valores padrão iniciais
         if 'preco_carbono' not in st.session_state:
@@ -184,12 +185,13 @@ def exibir_cotacao_carbono():
             st.session_state.contrato_info = f"EUA Carbon Dec {ano_contrato}"
             st.session_state.taxa_cambio = 5.50
             st.session_state.moeda_real = "R$"
+            st.session_state.ano_contrato = ano_contrato  # Armazena o ano atual
 
     # Exibe cotação atual do carbono
     st.sidebar.metric(
-        label=f"Carbon Dec {ano_contrato} (tCO₂eq)",
+        label=f"Carbon Dec {st.session_state.ano_contrato} (tCO₂eq)",
         value=f"{st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}",
-        help=f"Contrato futuro com vencimento Dezembro {ano_contrato}"
+        help=f"Contrato futuro com vencimento Dezembro {st.session_state.ano_contrato}"
     )
     
     # Exibe cotação atual do Euro
@@ -203,7 +205,7 @@ def exibir_cotacao_carbono():
     preco_carbono_reais = st.session_state.preco_carbono * st.session_state.taxa_cambio
     
     st.sidebar.metric(
-        label=f"Carbon Dec {ano_contrato} (R$/tCO₂eq)",
+        label=f"Carbon Dec {st.session_state.ano_contrato} (R$/tCO₂eq)",
         value=f"R$ {preco_carbono_reais:.2f}",
         help="Preço do carbono convertido para Reais Brasileiros"
     )
@@ -211,7 +213,7 @@ def exibir_cotacao_carbono():
     # Informações adicionais
     with st.sidebar.expander("📅 Sobre os Vencimentos e Câmbio"):
         st.markdown(f"""
-        **Contrato Atual:** Dec {ano_contrato}
+        **Contrato Atual:** Dec {st.session_state.ano_contrato}
         **Ticker:** `{ticker_atual}`
         
         **Câmbio Atual:**
@@ -639,6 +641,7 @@ if st.session_state.get('run_simulation', False):
         preco_carbono = st.session_state.preco_carbono
         moeda = st.session_state.moeda_carbono
         taxa_cambio = st.session_state.taxa_cambio
+        ano_contrato = st.session_state.ano_contrato  # Usa o ano armazenado
         
         # Calcular valores financeiros em Euros
         valor_tese_eur = calcular_valor_creditos(total_evitado_tese, preco_carbono, moeda)
@@ -658,9 +661,9 @@ if st.session_state.get('run_simulation', False):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
-                "Preço Carbon (Euro)", 
+                f"Preço Carbon Dec {ano_contrato} (Euro)", 
                 f"{moeda} {preco_carbono:.2f}/tCO₂eq",
-                help="Cotação do contrato futuro para Dezembro 2025"
+                help=f"Cotação do contrato futuro para Dezembro {ano_contrato}"
             )
         with col2:
             st.metric(
@@ -679,7 +682,7 @@ if st.session_state.get('run_simulation', False):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
-                "Preço Carbon (Real)", 
+                f"Preço Carbon Dec {ano_contrato} (Real)", 
                 f"R$ {formatar_br(preco_carbono * taxa_cambio)}/tCO₂eq",
                 help="Preço do carbono convertido para Reais"
             )
@@ -699,7 +702,7 @@ if st.session_state.get('run_simulation', False):
         # Explicação sobre compra e venda
         with st.expander("💡 Como funciona a comercialização no mercado de carbono?"):
             st.markdown(f"""
-            **Para o Carbon Dec 25:**
+            **Para o Carbon Dec {ano_contrato}:**
             - **Preço em Euro:** {moeda} {preco_carbono:.2f}/tCO₂eq
             - **Preço em Real:** R$ {formatar_br(preco_carbono * taxa_cambio)}/tCO₂eq
             - **Taxa de câmbio:** 1 Euro = R$ {taxa_cambio:.2f}
@@ -712,11 +715,12 @@ if st.session_state.get('run_simulation', False):
             - Receita em Euro: **{moeda} {formatar_br(valor_tese_eur)}**
             - Receita em Real: **R$ {formatar_br(valor_tese_brl)}**
             
-            **Contrato Carbon Dec 25:**
+            **Contrato Carbon Dec {ano_contrato}:**
             - Cada contrato = 1.000 tCO₂eq
-            - Vencimento: Dezembro 2025
+            - Vencimento: Dezembro {ano_contrato}
             - Mercado: ICE Exchange
             - Moeda original: Euros (€)
+            - Ticker no Yahoo Finance: `CO2Z{str(ano_contrato)[-2:]}.NYB`
             """)
         
         # Métricas originais de emissões
