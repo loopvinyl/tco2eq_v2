@@ -1016,7 +1016,7 @@ st.markdown("""
 **Proposta da Tese (Compostagem em reatores com minhoca):**
 - Yang et al. (2017). Greenhouse gas emissions from vermicomposting.
 
-**Cenário UNFCCC (Compostagem sem minhocas em céu aberto):**
+**Cenário UNFCCC (Compostagem sem minhocas a céu aberto):**
 - UNFCCC (2012). AMS-III.F - Methodology for compostage.
 - Yang et al. (2017). Greenhouse gas emissions from thermophilic composting.
 """)
