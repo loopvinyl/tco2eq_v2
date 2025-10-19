@@ -1013,10 +1013,10 @@ st.markdown("""
 - Wang et al. (2017). Nitrous oxide emissions from landfills.
 - Feng et al. (2020). Emissions from pre-disposal organic waste.
 
-**Proposta da Tese (Vermicompostagem):**
+**Proposta da Tese (Compostagem em reatores com minhoca):**
 - Yang et al. (2017). Greenhouse gas emissions from vermicomposting.
 
-**Cenário UNFCCC (Compostagem):**
+**Cenário UNFCCC (Compostagem sem minhocas em céu aberto):**
 - UNFCCC (2012). AMS-III.F - Methodology for compostage.
 - Yang et al. (2017). Greenhouse gas emissions from thermophilic composting.
 """)
