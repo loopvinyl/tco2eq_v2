@@ -809,7 +809,7 @@ if st.session_state.get('run_simulation', False):
         st.subheader("Redução de Emissões Acumulada")
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(df['Data'], df['Total_Aterro_tCO2eq_acum'], 'r-', label='Cenário Base (Aterro)', linewidth=2)
-        ax.plot(df['Data'], df['Total_Vermi_tCO2eq_acum'], 'g-', label='Projeto (Vermicompostagem)', linewidth=2)
+        ax.plot(df['Data'], df['Total_Vermi_tCO2eq_acum'], 'g-', label='Projeto (Compostagem com minhocas)', linewidth=2)
         ax.fill_between(df['Data'], df['Total_Vermi_tCO2eq_acum'], df['Total_Aterro_tCO2eq_acum'],
                         color='skyblue', alpha=0.5, label='Emissões Evitadas')
         ax.set_title('Redução de Emissões em {} Anos'.format(anos_simulacao))
