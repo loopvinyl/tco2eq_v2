@@ -1008,15 +1008,16 @@ st.markdown("""
 **Referências por Cenário:**
 
 **Cenário de Baseline (Aterro Sanitário):**
-- IPCC (2006). Guidelines for National Greenhouse Gas Inventories.
-- UNFCCC (2016). Tool to determine methane emissions from solid waste disposal sites.
-- Wang et al. (2017). Nitrous oxide emissions from landfills.
-- Feng et al. (2020). Emissions from pre-disposal organic waste.
+- IPCC (2006). Guidelines for National Greenhouse Gas Inventories
+- UNFCCC (2016). Tool to determine methane emissions from solid waste disposal sites
+- Wang et al. (2023). Methane emissions from landfills
+- Wang et al. (2017). Nitrous oxide emissions from landfills
+- Feng et al. (2020). Emissions from pre-disposal organic waste
 
 **Proposta da Tese (Compostagem em reatores com minhocas):**
-- Yang et al. (2017). Greenhouse gas emissions from vermicomposting.
+- Yang et al. (2017). Greenhouse gas emissions from vermicomposting
 
 **Cenário UNFCCC (Compostagem sem minhocas a céu aberto):**
-- UNFCCC (2012). AMS-III.F - Methodology for compostage.
-- Yang et al. (2017). Greenhouse gas emissions from thermophilic composting.
+- UNFCCC (2012). AMS-III.F - Methodology for compostage
+- Yang et al. (2017). Greenhouse gas emissions from thermophilic composting
 """)
