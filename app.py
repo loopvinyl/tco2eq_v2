@@ -1005,19 +1005,18 @@ else:
 # Rodapé
 st.markdown("---")
 st.markdown("""
+
 **Referências por Cenário:**
 
 **Cenário de Baseline (Aterro Sanitário):**
-- IPCC (2006). Guidelines for National Greenhouse Gas Inventories
-- UNFCCC (2016). Tool to determine methane emissions from solid waste disposal sites
-- Wang et al. (2023). Methane emissions from landfills
-- Wang et al. (2017). Nitrous oxide emissions from landfills
-- Feng et al. (2020). Emissions from pre-disposal organic waste
+- Metano: IPCC (2006), UNFCCC (2016) e Wang et al. (2023) 
+- Óxido Nitroso: Wang et al. (2017)
+- Metano e Óxido Nitroso no prá-descarte: Feng et al. (2020)
 
 **Proposta da Tese (Compostagem em reatores com minhocas):**
-- Yang et al. (2017). Greenhouse gas emissions from vermicomposting
+- Metano e Óxido Nitroso: Yang et al. (2017)
 
 **Cenário UNFCCC (Compostagem sem minhocas a céu aberto):**
-- UNFCCC (2012). AMS-III.F - Methodology for compostage
-- Yang et al. (2017). Greenhouse gas emissions from thermophilic composting
+- Protocolo AMS-III.F: UNFCCC (2016)
+- Fatores de emissões: Yang et al. (2017)
 """)
