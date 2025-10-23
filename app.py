@@ -1011,7 +1011,7 @@ st.markdown("""
 **Cenário de Baseline (Aterro Sanitário):**
 - Metano: IPCC (2006), UNFCCC (2016) e Wang et al. (2023) 
 - Óxido Nitroso: Wang et al. (2017)
-- Metano e Óxido Nitroso no prá-descarte: Feng et al. (2020)
+- Metano e Óxido Nitroso no pré-descarte: Feng et al. (2020)
 
 **Proposta da Tese (Compostagem em reatores com minhocas):**
 - Metano e Óxido Nitroso: Yang et al. (2017)
