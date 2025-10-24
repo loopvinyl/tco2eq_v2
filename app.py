@@ -1,3 +1,5 @@
+import requests
+from bs4 import BeautifulSoup
 import streamlit as st
 import numpy as np
 import pandas as pd
@@ -11,13 +13,6 @@ import warnings
 from matplotlib.ticker import FuncFormatter
 from SALib.sample.sobol import sample
 from SALib.analyze.sobol import analyze
-
-# Tentar importar yfinance com fallback
-try:
-    import yfinance as yf
-    YFINANCE_AVAILABLE = True
-except ImportError:
-    YFINANCE_AVAILABLE = False
 
 np.random.seed(50)  # Garante reprodutibilidade
 
@@ -52,9 +47,11 @@ def inicializar_session_state():
     if 'mostrar_atualizacao' not in st.session_state:
         st.session_state.mostrar_atualizacao = False
     if 'ano_contrato' not in st.session_state:
-        st.session_state.ano_contrato = 2025  # Inicia com CarbonDec25
+        st.session_state.ano_contrato = 2025
     if 'contrato_atual' not in st.session_state:
         st.session_state.contrato_atual = "CarbonDec25"
+    if 'fonte_cotacao' not in st.session_state:
+        st.session_state.fonte_cotacao = "Investing.com"
 
 # Chamar a inicialização
 inicializar_session_state()
@@ -69,103 +66,75 @@ Esta ferramenta projeta os Créditos de Carbono ao calcular as emissões de gase
 # FUNÇÕES DE COTAÇÃO AUTOMÁTICA DO CARBONO E CÂMBIO
 # =============================================================================
 
-def obter_ticker_carbono_atual():
+def obter_cotacao_carbono_investing():
     """
-    Determina automaticamente o ticker do contrato futuro de carbono mais relevante
-    Começa com CarbonDec25 e migra automaticamente após o vencimento
+    Obtém a cotação em tempo real do carbono via web scraping do Investing.com
     """
-    hoje = datetime.now()
-    ano_atual = hoje.year
-    mes_atual = hoje.month
-    
-    # VERIFICAR SE O CONTRATO CarbonDec25 JÁ VENCEU
-    # O contrato CarbonDec25 vence em dezembro de 2025
-    vencimento_carbondec25 = datetime(2025, 12, 15)  # Data aproximada de vencimento
-    
-    if hoje > vencimento_carbondec25:
-        # CarbonDec25 já venceu, usar próximo contrato
-        if mes_atual >= 9:
-            ano_contrato = ano_atual + 1
-        else:
-            ano_contrato = ano_atual
-        contrato_nome = f"CarbonDec{ano_contrato}"
-    else:
-        # CarbonDec25 ainda está válido
-        ano_contrato = 2025
-        contrato_nome = "CarbonDec25"
-    
-    # Formata o ano para 2 dígitos (25, 26, etc.)
-    ano_2_digitos = str(ano_contrato)[-2:]
-    
-    ticker = f'CO2Z{ano_2_digitos}.NYB'
-    return ticker, ano_contrato, contrato_nome
+    try:
+        url = "https://www.investing.com/commodities/carbon-emissions"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        response = requests.get(url, headers=headers, timeout=10)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Tentar encontrar o preço usando a classe fornecida
+        preco_element = soup.find('span', {'class': 'text-2xl'})
+        
+        if preco_element:
+            preco_texto = preco_element.text.replace(',', '')
+            try:
+                preco = float(preco_texto)
+                return preco, "€", "Carbon Emissions", True
+            except ValueError:
+                pass
+        
+        # Fallback: tentar encontrar por data-test
+        preco_element = soup.find('span', {'data-test': 'instrument-price-last'})
+        if preco_element:
+            preco_texto = preco_element.text.replace(',', '')
+            try:
+                preco = float(preco_texto)
+                return preco, "€", "Carbon Emissions", True
+            except ValueError:
+                pass
+                
+        return None, None, None, False
+        
+    except Exception as e:
+        return None, None, None, False
 
 def obter_cotacao_carbono():
     """
-    Obtém a cotação em tempo real do contrato futuro de carbono atual
+    Obtém a cotação em tempo real do carbono - usa apenas Investing.com
     """
-    if not YFINANCE_AVAILABLE:
-        ticker_atual, ano_contrato, contrato_nome = obter_ticker_carbono_atual()
-        return 85.50, "€", f"EUA {contrato_nome} (yfinance não disponível)", False
+    # Tentar via Investing.com
+    preco, moeda, contrato_info, sucesso = obter_cotacao_carbono_investing()
     
-    try:
-        # Obtém o ticker atual automaticamente
-        ticker_atual, ano_contrato, contrato_nome = obter_ticker_carbono_atual()
-        ano_2_digitos = str(ano_contrato)[-2:]
-        
-        simbolos_tentativas = [
-            ticker_atual,                    # Contrato atual (ex: CO2Z25.NYB)
-            f'CFIZ{ano_2_digitos}.NYB',     # Alternativa com mesmo ano
-            'CARBON-FUTURE',                # Genérico
-        ]
-        
-        cotacao = None
-        simbolo_usado = None
-        
-        for simbolo in simbolos_tentativas:
-            try:
-                ticker = yf.Ticker(simbolo)
-                hist = ticker.history(period='1d')
-                
-                if not hist.empty and not pd.isna(hist['Close'].iloc[-1]):
-                    cotacao = hist['Close'].iloc[-1]
-                    simbolo_usado = simbolo
-                    break
-                    
-            except Exception as e:
-                continue
-        
-        if cotacao is None:
-            # Fallback para dados de exemplo
-            return 85.50, "€", f"EUA {contrato_nome} (Referência)", False
-        
-        return cotacao, "€", f"EUA {contrato_nome}", True
-        
-    except Exception as e:
-        ticker_atual, ano_contrato, contrato_nome = obter_ticker_carbono_atual()
-        return 85.50, "€", f"EUA {contrato_nome} (Erro)", False
+    if sucesso:
+        return preco, moeda, f"{contrato_info} (Investing.com)", True
+    
+    # Fallback para valor padrão
+    return 85.50, "€", "Carbon Emissions (Referência)", False
 
 def obter_cotacao_euro_real():
     """
     Obtém a cotação em tempo real do Euro em relação ao Real Brasileiro
+    Usando uma API pública como fallback
     """
-    if not YFINANCE_AVAILABLE:
-        return 5.50, "R$", False
-    
     try:
-        # Ticker para EUR/BRL (Euro para Real Brasileiro)
-        ticker = yf.Ticker("EURBRL=X")
-        hist = ticker.history(period='1d')
-        
-        if not hist.empty and not pd.isna(hist['Close'].iloc[-1]):
-            cotacao = hist['Close'].iloc[-1]
+        # Tentar API do BCB ou outra fonte
+        url = "https://economia.awesomeapi.com.br/last/EUR-BRL"
+        response = requests.get(url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            cotacao = float(data['EURBRL']['bid'])
             return cotacao, "R$", True
-        else:
-            # Fallback para valor de referência
-            return 5.50, "R$", False
-            
-    except Exception as e:
-        return 5.50, "R$", False
+    except:
+        pass
+    
+    # Fallback para valor de referência
+    return 5.50, "R$", False
 
 def calcular_valor_creditos(emissoes_evitadas_tco2eq, preco_carbono_por_tonelada, moeda, taxa_cambio=1):
     """
@@ -174,41 +143,16 @@ def calcular_valor_creditos(emissoes_evitadas_tco2eq, preco_carbono_por_tonelada
     valor_total = emissoes_evitadas_tco2eq * preco_carbono_por_tonelada * taxa_cambio
     return valor_total
 
-def verificar_migracao_contrato():
-    """
-    Verifica se precisa migrar para um novo contrato e atualiza o session state
-    """
-    ticker_atual, ano_contrato, contrato_nome = obter_ticker_carbono_atual()
-    
-    # Verificar se houve mudança no contrato
-    if st.session_state.ano_contrato != ano_contrato or st.session_state.contrato_atual != contrato_nome:
-        st.session_state.ano_contrato = ano_contrato
-        st.session_state.contrato_atual = contrato_nome
-        return True
-    return False
-
 def exibir_cotacao_carbono():
     """
-    Exibe a cotação do carbono com informações sobre o contrato atual
+    Exibe a cotação do carbono com informações
     """
     st.sidebar.header("💰 Mercado de Carbono e Câmbio")
-    
-    if not YFINANCE_AVAILABLE:
-        st.sidebar.warning("⚠️ **yfinance não instalado**")
-        st.sidebar.info("Para cotações em tempo real, execute:")
-        st.sidebar.code("pip install yfinance")
-    
-    # Verificar migração automática de contrato
-    if verificar_migracao_contrato():
-        st.sidebar.info(f"🔄 Migração automática: {st.session_state.contrato_atual}")
     
     # Botão para atualizar cotações
     if st.sidebar.button("🔄 Atualizar Cotações"):
         st.session_state.cotacao_atualizada = True
         st.session_state.mostrar_atualizacao = True
-
-    # Obtém informações do contrato atual
-    ticker_atual, ano_contrato, contrato_nome = obter_ticker_carbono_atual()
     
     # Mostrar mensagem de atualização se necessário
     if st.session_state.get('mostrar_atualizacao', False):
@@ -228,25 +172,21 @@ def exibir_cotacao_carbono():
         else:
             st.sidebar.info(f"**{contrato_info}**")
         
-        if sucesso_euro:
-            st.sidebar.success(f"**EUR/BRL Atualizado**")
-        else:
-            st.sidebar.info(f"**EUR/BRL Referência**")
-        
         # Atualizar session state
         st.session_state.preco_carbono = preco_carbono
         st.session_state.moeda_carbono = moeda
         st.session_state.taxa_cambio = preco_euro
         st.session_state.moeda_real = moeda_real
+        st.session_state.fonte_cotacao = "Investing.com" if sucesso_carbono else "Referência"
         
         # Resetar flag
         st.session_state.cotacao_atualizada = False
 
     # Exibe cotação atual do carbono
     st.sidebar.metric(
-        label=f"{st.session_state.contrato_atual} (tCO₂eq)",
+        label=f"Preço do Carbono (tCO₂eq)",
         value=f"{st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}",
-        help=f"Contrato futuro com vencimento Dezembro {st.session_state.ano_contrato}"
+        help=f"Fonte: {st.session_state.fonte_cotacao}"
     )
     
     # Exibe cotação atual do Euro
@@ -260,36 +200,27 @@ def exibir_cotacao_carbono():
     preco_carbono_reais = st.session_state.preco_carbono * st.session_state.taxa_cambio
     
     st.sidebar.metric(
-        label=f"{st.session_state.contrato_atual} (R$/tCO₂eq)",
+        label=f"Carbono em Reais (tCO₂eq)",
         value=f"R$ {preco_carbono_reais:.2f}",
         help="Preço do carbono convertido para Reais Brasileiros"
     )
     
     # Informações adicionais
-    with st.sidebar.expander("📅 Sobre os Vencimentos e Câmbio"):
+    with st.sidebar.expander("ℹ️ Sobre as Cotações"):
         st.markdown(f"""
-        **Contrato Atual:** {st.session_state.contrato_atual}
-        **Ticker:** `{ticker_atual}`
+        **Fonte Carbono:** {st.session_state.fonte_cotacao}
+        **Preço Atual:** {st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}/tCO₂eq
+        **Câmbio:** 1 Euro = R$ {st.session_state.taxa_cambio:.2f}
+        **Carbono em Reais:** R$ {preco_carbono_reais:.2f}/tCO₂eq
         
-        **Status do CarbonDec25:**
-        - {'⏳ **VÁLIDO** (em vigor)' if st.session_state.contrato_atual == 'CarbonDec25' else '✅ **VENCIDO** (migrado para próximo contrato)'}
-        - Vencimento: Dezembro 2025
-        - Migração automática após vencimento
+        **Mercado de Referência:**
+        - European Union Allowances (EUA)
+        - Contratos futuros de carbono
+        - Preços em tempo real do Investing.com
         
-        **Câmbio Atual:**
-        - 1 Euro = R$ {st.session_state.taxa_cambio:.2f}
-        - Carbon em Reais: R$ {preco_carbono_reais:.2f}/tCO₂eq
-        
-        **Ciclo dos Contratos:**
-        - Dez 2024 → CO2Z24.NYB
-        - Dez 2025 → CO2Z25.NYB (Atual) 
-        - Dez 2026 → CO2Z26.NYB
-        - Dez 2027 → CO2Z27.NYB
-        
-        **Migração Automática:**
-        - CarbonDec25 vigente até dezembro/2025
-        - Após vencimento: migra automaticamente
-        - Sem necessidade de atualização manual
+        **Atualização:**
+        - Clique em "Atualizar Cotações" para valores mais recentes
+        - As cotações são atualizadas em tempo real
         """)
 
 # =============================================================================
@@ -699,8 +630,7 @@ if st.session_state.get('run_simulation', False):
         preco_carbono = st.session_state.preco_carbono
         moeda = st.session_state.moeda_carbono
         taxa_cambio = st.session_state.taxa_cambio
-        ano_contrato = st.session_state.ano_contrato
-        contrato_atual = st.session_state.contrato_atual
+        fonte_cotacao = st.session_state.fonte_cotacao
         
         # Calcular valores financeiros em Euros
         valor_tese_eur = calcular_valor_creditos(total_evitado_tese, preco_carbono, moeda)
@@ -713,16 +643,13 @@ if st.session_state.get('run_simulation', False):
         # NOVA SEÇÃO: VALOR FINANCEIRO DAS EMISSÕES EVITADAS
         st.subheader("💰 Valor Financeiro das Emissões Evitadas")
         
-        if not YFINANCE_AVAILABLE:
-            st.warning("⚠️ **Cotações em modo offline** - Instale yfinance para valores em tempo real")
-        
         # Primeira linha: Euros
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
-                f"Preço {contrato_atual} (Euro)", 
+                f"Preço Carbono (Euro)", 
                 f"{moeda} {preco_carbono:.2f}/tCO₂eq",
-                help=f"Cotação do contrato futuro para Dezembro {ano_contrato}"
+                help=f"Fonte: {fonte_cotacao}"
             )
         with col2:
             st.metric(
@@ -741,7 +668,7 @@ if st.session_state.get('run_simulation', False):
         col1, col2, col3 = st.columns(3)
         with col1:
             st.metric(
-                f"Preço {contrato_atual} (R$)", 
+                f"Preço Carbono (R$)", 
                 f"R$ {formatar_br(preco_carbono * taxa_cambio)}/tCO₂eq",
                 help="Preço do carbono convertido para Reais"
             )
@@ -759,16 +686,17 @@ if st.session_state.get('run_simulation', False):
             )
         
         # Status do contrato
-        status_contrato = "⏳ **VÁLIDO** (em vigor)" if contrato_atual == "CarbonDec25" else "✅ **VENCIDO** (migrado automaticamente)"
+        status_contrato = "⏳ **ATUAL**"
         
         # Explicação sobre compra e venda
         with st.expander(f"💡 Como funciona a comercialização no mercado de carbono? - {status_contrato}"):
             st.markdown(f"""
-            **Para o {contrato_atual}:**
+            **Para o Mercado de Carbono:**
             - **Status:** {status_contrato}
             - **Preço em Euro:** {moeda} {preco_carbono:.2f}/tCO₂eq
             - **Preço em Real:** R$ {formatar_br(preco_carbono * taxa_cambio)}/tCO₂eq
             - **Taxa de câmbio:** 1 Euro = R$ {taxa_cambio:.2f}
+            - **Fonte:** {fonte_cotacao}
             
             **📈 Comprar créditos (compensação):**
             - Custo em Euro: **{moeda} {formatar_br(valor_tese_eur)}**
@@ -778,13 +706,10 @@ if st.session_state.get('run_simulation', False):
             - Receita em Euro: **{moeda} {formatar_br(valor_tese_eur)}**
             - Receita em Real: **R$ {formatar_br(valor_tese_brl)}**
             
-            **Contrato {contrato_atual}:**
-            - Cada contrato = 1.000 tCO₂eq
-            - Vencimento: Dezembro {ano_contrato}
-            - Mercado: ICE Exchange
-            - Moeda original: Euros (€)
-            - Ticker no Yahoo Finance: `CO2Z{str(ano_contrato)[-2:]}.NYB`
-            - **Migração automática:** Após vencimento em dezembro/2025
+            **Mercado de Referência:**
+            - European Union Allowances (EUA)
+            - Preços em tempo real do Investing.com
+            - Atualização manual via botão na sidebar
             """)
         
         # Métricas originais de emissões
