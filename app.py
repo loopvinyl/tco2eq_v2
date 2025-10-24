@@ -46,10 +46,6 @@ def inicializar_session_state():
         st.session_state.run_simulation = False
     if 'mostrar_atualizacao' not in st.session_state:
         st.session_state.mostrar_atualizacao = False
-    if 'ano_contrato' not in st.session_state:
-        st.session_state.ano_contrato = 2025
-    if 'contrato_atual' not in st.session_state:
-        st.session_state.contrato_atual = "CarbonDec25"
     if 'fonte_cotacao' not in st.session_state:
         st.session_state.fonte_cotacao = "Investing.com"
 
@@ -73,68 +69,115 @@ def obter_cotacao_carbono_investing():
     try:
         url = "https://www.investing.com/commodities/carbon-emissions"
         headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+            'Referer': 'https://www.investing.com/'
         }
-        response = requests.get(url, headers=headers, timeout=10)
-        soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Tentar encontrar o preço usando a classe fornecida
-        preco_element = soup.find('span', {'class': 'text-2xl'})
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
         
-        if preco_element:
-            preco_texto = preco_element.text.replace(',', '')
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Várias estratégias para encontrar o preço
+        selectores = [
+            '[data-test="instrument-price-last"]',
+            '.text-2xl',
+            '.last-price-value',
+            '.instrument-price-last',
+            '.pid-1062510-last',
+            '.float_lang_base_1',
+            '.top.bold.inlineblock',
+            '#last_last'
+        ]
+        
+        preco = None
+        fonte = "Investing.com"
+        
+        for seletor in selectores:
             try:
-                preco = float(preco_texto)
-                return preco, "€", "Carbon Emissions", True
-            except ValueError:
-                pass
+                elemento = soup.select_one(seletor)
+                if elemento:
+                    texto_preco = elemento.text.strip().replace(',', '')
+                    # Remover caracteres não numéricos exceto ponto
+                    texto_preco = ''.join(c for c in texto_preco if c.isdigit() or c == '.')
+                    if texto_preco:
+                        preco = float(texto_preco)
+                        break
+            except (ValueError, AttributeError):
+                continue
         
-        # Fallback: tentar encontrar por data-test
-        preco_element = soup.find('span', {'data-test': 'instrument-price-last'})
-        if preco_element:
-            preco_texto = preco_element.text.replace(',', '')
-            try:
-                preco = float(preco_texto)
-                return preco, "€", "Carbon Emissions", True
-            except ValueError:
-                pass
-                
-        return None, None, None, False
+        if preco is not None:
+            return preco, "€", "Carbon Emissions Future", True, fonte
+        
+        # Tentativa alternativa: procurar por padrões numéricos no HTML
+        import re
+        padroes_preco = [
+            r'"last":"([\d,]+)"',
+            r'data-last="([\d,]+)"',
+            r'last_price["\']?:\s*["\']?([\d,]+)',
+            r'value["\']?:\s*["\']?([\d,]+)'
+        ]
+        
+        html_texto = str(soup)
+        for padrao in padroes_preco:
+            matches = re.findall(padrao, html_texto)
+            for match in matches:
+                try:
+                    preco_texto = match.replace(',', '')
+                    preco = float(preco_texto)
+                    if 50 < preco < 200:  # Faixa razoável para carbono
+                        return preco, "€", "Carbon Emissions Future", True, fonte
+                except ValueError:
+                    continue
+                    
+        return None, None, None, False, fonte
         
     except Exception as e:
-        return None, None, None, False
+        return None, None, None, False, f"Investing.com - Erro: {str(e)}"
 
 def obter_cotacao_carbono():
     """
     Obtém a cotação em tempo real do carbono - usa apenas Investing.com
     """
     # Tentar via Investing.com
-    preco, moeda, contrato_info, sucesso = obter_cotacao_carbono_investing()
+    preco, moeda, contrato_info, sucesso, fonte = obter_cotacao_carbono_investing()
     
     if sucesso:
-        return preco, moeda, f"{contrato_info} (Investing.com)", True
+        return preco, moeda, f"{contrato_info}", True, fonte
     
     # Fallback para valor padrão
-    return 85.50, "€", "Carbon Emissions (Referência)", False
+    return 85.50, "€", "Carbon Emissions (Referência)", False, "Referência"
 
 def obter_cotacao_euro_real():
     """
     Obtém a cotação em tempo real do Euro em relação ao Real Brasileiro
-    Usando uma API pública como fallback
     """
     try:
-        # Tentar API do BCB ou outra fonte
+        # API do BCB
         url = "https://economia.awesomeapi.com.br/last/EUR-BRL"
-        response = requests.get(url, timeout=5)
+        response = requests.get(url, timeout=10)
         if response.status_code == 200:
             data = response.json()
             cotacao = float(data['EURBRL']['bid'])
-            return cotacao, "R$", True
+            return cotacao, "R$", True, "AwesomeAPI"
+    except:
+        pass
+    
+    try:
+        # Fallback para API alternativa
+        url = "https://api.exchangerate-api.com/v4/latest/EUR"
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            cotacao = data['rates']['BRL']
+            return cotacao, "R$", True, "ExchangeRate-API"
     except:
         pass
     
     # Fallback para valor de referência
-    return 5.50, "R$", False
+    return 5.50, "R$", False, "Referência"
 
 def calcular_valor_creditos(emissoes_evitadas_tco2eq, preco_carbono_por_tonelada, moeda, taxa_cambio=1):
     """
@@ -156,28 +199,33 @@ def exibir_cotacao_carbono():
     
     # Mostrar mensagem de atualização se necessário
     if st.session_state.get('mostrar_atualizacao', False):
-        st.sidebar.info("🔄 Atualizando cotações...")
+        st.sidebar.info("🔄 Atualizando cotações do Investing.com...")
         st.session_state.mostrar_atualizacao = False
     
     if st.session_state.get('cotacao_atualizada', False):
         # Obter cotação do carbono
-        preco_carbono, moeda, contrato_info, sucesso_carbono = obter_cotacao_carbono()
+        preco_carbono, moeda, contrato_info, sucesso_carbono, fonte_carbono = obter_cotacao_carbono()
         
         # Obter cotação do Euro
-        preco_euro, moeda_real, sucesso_euro = obter_cotacao_euro_real()
+        preco_euro, moeda_real, sucesso_euro, fonte_euro = obter_cotacao_euro_real()
         
         # Mostrar resultados
         if sucesso_carbono:
-            st.sidebar.success(f"**{contrato_info}**")
+            st.sidebar.success(f"**{contrato_info}** - {fonte_carbono}")
         else:
-            st.sidebar.info(f"**{contrato_info}**")
+            st.sidebar.info(f"**{contrato_info}** - {fonte_carbono}")
+        
+        if sucesso_euro:
+            st.sidebar.success(f"**EUR/BRL** - {fonte_euro}")
+        else:
+            st.sidebar.info(f"**EUR/BRL** - {fonte_euro}")
         
         # Atualizar session state
         st.session_state.preco_carbono = preco_carbono
         st.session_state.moeda_carbono = moeda
         st.session_state.taxa_cambio = preco_euro
         st.session_state.moeda_real = moeda_real
-        st.session_state.fonte_cotacao = "Investing.com" if sucesso_carbono else "Referência"
+        st.session_state.fonte_cotacao = fonte_carbono
         
         # Resetar flag
         st.session_state.cotacao_atualizada = False
@@ -220,7 +268,8 @@ def exibir_cotacao_carbono():
         
         **Atualização:**
         - Clique em "Atualizar Cotações" para valores mais recentes
-        - As cotações são atualizadas em tempo real
+        - As cotações são obtidas diretamente do Investing.com
+        - Em caso de falha, usa valores de referência
         """)
 
 # =============================================================================
