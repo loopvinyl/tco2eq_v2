@@ -67,7 +67,7 @@ inicializar_session_state()
 # Título do aplicativo
 st.title("Simulador de Emissões de tCO₂eq")
 st.markdown("""
-Esta ferramenta projeta os Créditos de Carbono ao calcular as emissões de gases de efeito estufa para dois contextos de gestão de resíduos.
+Esta ferramenta projeta os Créditos de Carbono ao calcular as emissões de gases de efeito estufa para dois contextos de gestão de resíduos
 """)
 
 # =============================================================================
