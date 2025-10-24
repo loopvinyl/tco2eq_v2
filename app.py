@@ -33,11 +33,18 @@ sns.set_style("whitegrid")
 # Inicializar todas as variáveis de session state necessárias
 def inicializar_session_state():
     if 'preco_carbono' not in st.session_state:
-        st.session_state.preco_carbono = 85.50
-    if 'moeda_carbono' not in st.session_state:
-        st.session_state.moeda_carbono = "€"
+        # Buscar cotação automaticamente na inicialização
+        preco_carbono, moeda, contrato_info, sucesso, fonte = obter_cotacao_carbono()
+        st.session_state.preco_carbono = preco_carbono
+        st.session_state.moeda_carbono = moeda
+        st.session_state.fonte_cotacao = fonte
+        
     if 'taxa_cambio' not in st.session_state:
-        st.session_state.taxa_cambio = 5.50
+        # Buscar cotação do Euro automaticamente
+        preco_euro, moeda_real, sucesso_euro, fonte_euro = obter_cotacao_euro_real()
+        st.session_state.taxa_cambio = preco_euro
+        st.session_state.moeda_real = moeda_real
+        
     if 'moeda_real' not in st.session_state:
         st.session_state.moeda_real = "R$"
     if 'cotacao_atualizada' not in st.session_state:
@@ -46,8 +53,8 @@ def inicializar_session_state():
         st.session_state.run_simulation = False
     if 'mostrar_atualizacao' not in st.session_state:
         st.session_state.mostrar_atualizacao = False
-    if 'fonte_cotacao' not in st.session_state:
-        st.session_state.fonte_cotacao = "Investing.com"
+    if 'cotacao_carregada' not in st.session_state:
+        st.session_state.cotacao_carregada = False
 
 # Chamar a inicialização
 inicializar_session_state()
@@ -188,37 +195,31 @@ def calcular_valor_creditos(emissoes_evitadas_tco2eq, preco_carbono_por_tonelada
 
 def exibir_cotacao_carbono():
     """
-    Exibe a cotação do carbono com informações
+    Exibe a cotação do carbono com informações - ATUALIZADA AUTOMATICAMENTE
     """
     st.sidebar.header("💰 Mercado de Carbono e Câmbio")
     
-    # Botão para atualizar cotações
-    if st.sidebar.button("🔄 Atualizar Cotações"):
-        st.session_state.cotacao_atualizada = True
+    # Atualização automática na primeira execução
+    if not st.session_state.get('cotacao_carregada', False):
         st.session_state.mostrar_atualizacao = True
+        st.session_state.cotacao_carregada = True
+    
+    # Botão para atualizar cotações
+    col1, col2 = st.sidebar.columns([3, 1])
+    with col1:
+        if st.button("🔄 Atualizar Cotações", key="atualizar_cotacoes"):
+            st.session_state.cotacao_atualizada = True
+            st.session_state.mostrar_atualizacao = True
     
     # Mostrar mensagem de atualização se necessário
     if st.session_state.get('mostrar_atualizacao', False):
         st.sidebar.info("🔄 Atualizando cotações do Investing.com...")
-        st.session_state.mostrar_atualizacao = False
-    
-    if st.session_state.get('cotacao_atualizada', False):
+        
         # Obter cotação do carbono
         preco_carbono, moeda, contrato_info, sucesso_carbono, fonte_carbono = obter_cotacao_carbono()
         
         # Obter cotação do Euro
         preco_euro, moeda_real, sucesso_euro, fonte_euro = obter_cotacao_euro_real()
-        
-        # Mostrar resultados
-        if sucesso_carbono:
-            st.sidebar.success(f"**{contrato_info}** - {fonte_carbono}")
-        else:
-            st.sidebar.info(f"**{contrato_info}** - {fonte_carbono}")
-        
-        if sucesso_euro:
-            st.sidebar.success(f"**EUR/BRL** - {fonte_euro}")
-        else:
-            st.sidebar.info(f"**EUR/BRL** - {fonte_euro}")
         
         # Atualizar session state
         st.session_state.preco_carbono = preco_carbono
@@ -227,14 +228,17 @@ def exibir_cotacao_carbono():
         st.session_state.moeda_real = moeda_real
         st.session_state.fonte_cotacao = fonte_carbono
         
-        # Resetar flag
+        # Resetar flags
+        st.session_state.mostrar_atualizacao = False
         st.session_state.cotacao_atualizada = False
+        
+        st.rerun()
 
     # Exibe cotação atual do carbono
     st.sidebar.metric(
         label=f"Preço do Carbono (tCO₂eq)",
         value=f"{st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}",
-        help=f"Fonte: {st.session_state.fonte_cotacao}"
+        help=f"Fonte: {st.session_state.fonte_cotacao} (Atualizado automaticamente)"
     )
     
     # Exibe cotação atual do Euro
@@ -266,10 +270,10 @@ def exibir_cotacao_carbono():
         - Contratos futuros de carbono
         - Preços em tempo real do Investing.com
         
-        **Atualização:**
+        **Atualização Automática:**
+        - As cotações são carregadas automaticamente ao abrir o app
         - Clique em "Atualizar Cotações" para valores mais recentes
-        - As cotações são obtidas diretamente do Investing.com
-        - Em caso de falha, usa valores de referência
+        - Em caso de falha, usa valores de referência atualizados
         """)
 
 # =============================================================================
@@ -319,7 +323,7 @@ def br_format_5_dec(x, pos):
 # SIDEBAR COM PARÂMETROS
 # =============================================================================
 
-# Seção de cotação do carbono
+# Seção de cotação do carbono - AGORA ATUALIZADA AUTOMATICAMENTE
 exibir_cotacao_carbono()
 
 # Seção original de parâmetros
