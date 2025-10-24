@@ -777,73 +777,44 @@ if st.session_state.get('run_simulation', False):
             """)
         
         # =============================================================================
-        # SEÇÃO ATUALIZADA: RESUMO DAS EMISSÕES EVITADAS COM MÉTRICAS ANUAIS
+        # SEÇÃO ATUALIZADA: RESUMO DAS EMISSÕES EVITADAS COM MÉTRICAS ANUAIS REORGANIZADAS
         # =============================================================================
         
-        # Métricas originais de emissões
+        # Métricas de emissões evitadas - layout reorganizado
         st.subheader("📊 Resumo das Emissões Evitadas")
-        col1, col2, col3, col4 = st.columns(4)
+        
+        # Calcular médias anuais
+        media_anual_tese = total_evitado_tese / anos_simulacao
+        media_anual_unfccc = total_evitado_unfccc / anos_simulacao
+        
+        # Layout com duas colunas principais
+        col1, col2 = st.columns(2)
 
         with col1:
+            st.markdown("#### 📋 Metodologia da Tese")
             st.metric(
-                "Total de emissões evitadas (Tese)", 
+                "Total de emissões evitadas", 
                 f"{formatar_br(total_evitado_tese)} tCO₂eq",
                 help=f"Total acumulado em {anos_simulacao} anos"
             )
-
-        with col2:
-            media_anual_tese = total_evitado_tese / anos_simulacao
             st.metric(
-                "Média anual (Tese)", 
+                "Média anual", 
                 f"{formatar_br(media_anual_tese)} tCO₂eq/ano",
                 help=f"Emissões evitadas por ano em média"
             )
 
-        with col3:
+        with col2:
+            st.markdown("#### 📋 Metodologia UNFCCC")
             st.metric(
-                "Total de emissões evitadas (UNFCCC)", 
+                "Total de emissões evitadas", 
                 f"{formatar_br(total_evitado_unfccc)} tCO₂eq",
                 help=f"Total acumulado em {anos_simulacao} anos"
             )
-
-        with col4:
-            media_anual_unfccc = total_evitado_unfccc / anos_simulacao
             st.metric(
-                "Média anual (UNFCCC)", 
+                "Média anual", 
                 f"{formatar_br(media_anual_unfccc)} tCO₂eq/ano",
                 help=f"Emissões evitadas por ano em média"
             )
-
-        # Adicionar uma linha de comparação entre as metodologias
-        st.subheader("📈 Comparação entre Metodologias")
-        comp_col1, comp_col2, comp_col3 = st.columns(3)
-
-        with comp_col1:
-            diferenca_total = total_evitado_tese - total_evitado_unfccc
-            st.metric(
-                "Diferença Total (Tese - UNFCCC)",
-                f"{formatar_br(diferenca_total)} tCO₂eq",
-                help="Diferença acumulada entre as duas metodologias"
-            )
-
-        with comp_col2:
-            diferenca_anual = media_anual_tese - media_anual_unfccc
-            st.metric(
-                "Diferença Anual Média",
-                f"{formatar_br(diferenca_anual)} tCO₂eq/ano",
-                help="Diferença média anual entre as metodologias"
-            )
-
-        with comp_col3:
-            if total_evitado_unfccc > 0:
-                percentual_diferenca = (diferenca_total / total_evitado_unfccc) * 100
-                st.metric(
-                    "Vantagem da Tese",
-                    f"{formatar_br(percentual_diferenca)}%",
-                    help="Percentual de vantagem da metodologia da Tese sobre UNFCCC"
-                )
-            else:
-                st.metric("Vantagem da Tese", "N/A", help="Não calculável")
 
         # Adicionar explicação sobre as métricas anuais
         with st.expander("💡 Entenda as métricas anuais"):
@@ -860,15 +831,11 @@ if st.session_state.get('run_simulation', False):
             - **Média anual:** {formatar_br(media_anual_unfccc)} tCO₂eq/ano
             - Equivale a aproximadamente **{formatar_br(media_anual_unfccc / 365)} tCO₂eq/dia**
             
-            **Comparação:**
-            - **Vantagem da Tese:** {formatar_br(diferenca_total)} tCO₂eq no total
-            - **Vantagem anual:** {formatar_br(diferenca_anual)} tCO₂eq/ano
-            - **Percentual:** {formatar_br(percentual_diferenca) if total_evitado_unfccc > 0 else 'N/A'}% mais eficiente
-            
             **💡 Significado prático:**
             - As métricas anuais ajudam a planejar projetos de longo prazo
             - Permitem comparar com metas anuais de redução de emissões
             - Facilitam o cálculo de retorno financeiro anual
+            - A média anual representa o desempenho constante do projeto
             """)
 
         # Gráfico comparativo
