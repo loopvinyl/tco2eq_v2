@@ -258,22 +258,29 @@ def exibir_cotacao_carbono():
     )
     
     # Informações adicionais
-    with st.sidebar.expander("ℹ️ Sobre as Cotações"):
+    with st.sidebar.expander("ℹ️ Informações do Mercado de Carbono"):
         st.markdown(f"""
-        **Fonte Carbono:** {st.session_state.fonte_cotacao}
-        **Preço Atual:** {st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}/tCO₂eq
-        **Câmbio:** 1 Euro = R$ {st.session_state.taxa_cambio:.2f}
-        **Carbono em Reais:** R$ {preco_carbono_reais:.2f}/tCO₂eq
+        **📊 Cotações Atuais:**
+        - **Fonte do Carbono:** {st.session_state.fonte_cotacao}
+        - **Preço Atual:** {st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}/tCO₂eq
+        - **Câmbio EUR/BRL:** 1 Euro = R$ {st.session_state.taxa_cambio:.2f}
+        - **Carbono em Reais:** R$ {preco_carbono_reais:.2f}/tCO₂eq
         
-        **Mercado de Referência:**
+        **🌍 Mercado de Referência:**
         - European Union Allowances (EUA)
+        - European Emissions Trading System (EU ETS)
         - Contratos futuros de carbono
         - Preços em tempo real
         
-        **Atualização:**
-        - As cotações são carregadas automaticamente ao abrir o app
-        - Clique em "Atualizar Cotações" para valores mais recentes
-        - Em caso de falha, usa valores de referência atualizados
+        **🔄 Atualização:**
+        - As cotações são carregadas automaticamente ao abrir o aplicativo
+        - Clique em **"Atualizar Cotações"** para obter valores mais recentes
+        - Em caso de falha na conexão, são utilizados valores de referência atualizados
+        
+        **💡 Importante:**
+        - Os preços são baseados no mercado regulado da UE
+        - Valores em tempo real sujeitos a variações de mercado
+        - Conversão para Real utilizando câmbio comercial
         """)
 
 # =============================================================================
@@ -328,28 +335,35 @@ exibir_cotacao_carbono()
 
 # Seção original de parâmetros
 with st.sidebar:
-    st.header("Parâmetros de Entrada")
+    st.header("⚙️ Parâmetros de Entrada")
     
     # Entrada principal de resíduos
     residuos_kg_dia = st.slider("Quantidade de resíduos (kg/dia)", 
-                               min_value=10, max_value=1000, value=100, step=10)
+                               min_value=10, max_value=1000, value=100, step=10,
+                               help="Quantidade diária de resíduos orgânicos gerados")
     
-    st.subheader("Parâmetros Operacionais")
+    st.subheader("📊 Parâmetros Operacionais")
     
     # Umidade com formatação brasileira (0,85 em vez de 0.85)
-    umidade_valor = st.slider("Umidade do resíduo", 50, 95, 85, 1)
+    umidade_valor = st.slider("Umidade do resíduo (%)", 50, 95, 85, 1,
+                             help="Percentual de umidade dos resíduos orgânicos")
     umidade = umidade_valor / 100.0
-    st.write(f"Umidade selecionada: {formatar_br(umidade_valor)}%")
+    st.write(f"**Umidade selecionada:** {formatar_br(umidade_valor)}%")
     
-    massa_exposta_kg = st.slider("Massa exposta na frente de trabalho (kg)", 50, 200, 100, 10)
-    h_exposta = st.slider("Horas expostas por dia", 4, 24, 8, 1)
+    massa_exposta_kg = st.slider("Massa exposta na frente de trabalho (kg)", 50, 200, 100, 10,
+                                help="Massa de resíduos exposta diariamente para tratamento")
+    h_exposta = st.slider("Horas expostas por dia", 4, 24, 8, 1,
+                         help="Horas diárias de exposição dos resíduos")
     
-    st.subheader("Configuração de Simulação")
-    anos_simulacao = st.slider("Anos de simulação", 5, 50, 20, 5)
-    n_simulations = st.slider("Número de simulações Monte Carlo", 50, 1000, 100, 50)
-    n_samples = st.slider("Número de amostras Sobol", 32, 256, 64, 16)
+    st.subheader("🎯 Configuração de Simulação")
+    anos_simulacao = st.slider("Anos de simulação", 5, 50, 20, 5,
+                              help="Período total da simulação em anos")
+    n_simulations = st.slider("Número de simulações Monte Carlo", 50, 1000, 100, 50,
+                             help="Número de iterações para análise de incerteza")
+    n_samples = st.slider("Número de amostras Sobol", 32, 256, 64, 16,
+                         help="Número de amostras para análise de sensibilidade")
     
-    if st.button("Executar Simulação"):
+    if st.button("🚀 Executar Simulação", type="primary"):
         st.session_state.run_simulation = True
 
 # =============================================================================
@@ -673,7 +687,7 @@ if st.session_state.get('run_simulation', False):
         # =============================================================================
 
         # Exibir resultados
-        st.header("Resultados da Simulação")
+        st.header("📈 Resultados da Simulação")
         
         # Obter valores totais
         total_evitado_tese = df['Reducao_tCO2eq_acum'].iloc[-1]
@@ -741,24 +755,25 @@ if st.session_state.get('run_simulation', False):
         # Explicação sobre compra e venda
         with st.expander("💡 Como funciona a comercialização no mercado de carbono?"):
             st.markdown(f"""
-            **Para o Mercado de Carbono:**
+            **📊 Informações de Mercado:**
             - **Preço em Euro:** {moeda} {preco_carbono:.2f}/tCO₂eq
             - **Preço em Real:** R$ {formatar_br(preco_carbono * taxa_cambio)}/tCO₂eq
             - **Taxa de câmbio:** 1 Euro = R$ {taxa_cambio:.2f}
             - **Fonte:** {fonte_cotacao}
             
-            **📈 Comprar créditos (compensação):**
+            **💶 Comprar créditos (compensação):**
             - Custo em Euro: **{moeda} {formatar_br(valor_tese_eur)}**
             - Custo em Real: **R$ {formatar_br(valor_tese_brl)}**
             
-            **📉 Vender créditos (comercialização):**  
+            **💵 Vender créditos (comercialização):**  
             - Receita em Euro: **{moeda} {formatar_br(valor_tese_eur)}**
             - Receita em Real: **R$ {formatar_br(valor_tese_brl)}**
             
-            **Mercado de Referência:**
+            **🌍 Mercado de Referência:**
             - European Union Allowances (EUA)
+            - European Emissions Trading System (EU ETS)
             - Contratos futuros de carbono
-            - Preços em tempo real
+            - Preços em tempo real do mercado regulado
             """)
         
         # Métricas originais de emissões
@@ -770,7 +785,7 @@ if st.session_state.get('run_simulation', False):
             st.metric("Total de emissões evitadas (UNFCCC)", f"{formatar_br(total_evitado_unfccc)} tCO₂eq")
 
         # Gráfico comparativo
-        st.subheader("Comparação Anual das Emissões Evitadas")
+        st.subheader("📊 Comparação Anual das Emissões Evitadas")
         df_evitadas_anual = pd.DataFrame({
             'Year': df_anual_revisado['Year'],
             'Proposta da Tese': df_anual_revisado['Emission reductions (t CO₂eq)'],
@@ -809,7 +824,7 @@ if st.session_state.get('run_simulation', False):
         st.pyplot(fig)
 
         # Gráfico de redução acumulada
-        st.subheader("Redução de Emissões Acumulada")
+        st.subheader("📉 Redução de Emissões Acumulada")
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.plot(df['Data'], df['Total_Aterro_tCO2eq_acum'], 'r-', label='Cenário Base (Aterro Sanitário)', linewidth=2)
         ax.plot(df['Data'], df['Total_Vermi_tCO2eq_acum'], 'g-', label='Projeto (Compostagem em reatores com minhocas)', linewidth=2)
@@ -825,7 +840,7 @@ if st.session_state.get('run_simulation', False):
         st.pyplot(fig)
 
         # Análise de Sensibilidade Global (Sobol) - PROPOSTA DA TESE
-        st.subheader("Análise de Sensibilidade Global (Sobol) - Proposta da Tese")
+        st.subheader("🎯 Análise de Sensibilidade Global (Sobol) - Proposta da Tese")
         br_formatter_sobol = FuncFormatter(br_format)
 
         np.random.seed(50)  
@@ -860,7 +875,7 @@ if st.session_state.get('run_simulation', False):
         st.pyplot(fig)
 
         # Análise de Sensibilidade Global (Sobol) - CENÁRIO UNFCCC
-        st.subheader("Análise de Sensibilidade Global (Sobol) - Cenário UNFCCC")
+        st.subheader("🎯 Análise de Sensibilidade Global (Sobol) - Cenário UNFCCC")
 
         np.random.seed(50)
         
@@ -894,7 +909,7 @@ if st.session_state.get('run_simulation', False):
         st.pyplot(fig)
 
         # Análise de Incerteza (Monte Carlo) - PROPOSTA DA TESE
-        st.subheader("Análise de Incerteza (Monte Carlo) - Proposta da Tese")
+        st.subheader("🎲 Análise de Incerteza (Monte Carlo) - Proposta da Tese")
 
         
         def gerar_parametros_mc_tese(n):
@@ -930,7 +945,7 @@ if st.session_state.get('run_simulation', False):
         st.pyplot(fig)
 
         # Análise de Incerteza (Monte Carlo) - CENÁRIO UNFCCC
-        st.subheader("Análise de Incerteza (Monte Carlo) - Cenário UNFCCC")
+        st.subheader("🎲 Análise de Incerteza (Monte Carlo) - Cenário UNFCCC")
         
         def gerar_parametros_mc_unfccc(n):
             np.random.seed(50)
@@ -965,7 +980,7 @@ if st.session_state.get('run_simulation', False):
         st.pyplot(fig)
 
         # Análise Estatística de Comparação
-        st.subheader("Análise Estatística de Comparação")
+        st.subheader("📊 Análise Estatística de Comparação")
         
         # Teste de normalidade para as diferenças
         diferencas = results_array_tese - results_array_unfccc
@@ -981,7 +996,7 @@ if st.session_state.get('run_simulation', False):
         st.write(f"Teste de Wilcoxon (pareado): Estatística = **{wilcoxon_stat:.5f}**, P-valor = **{p_wilcoxon:.5f}**")
 
         # Tabela de resultados anuais - Proposta da Tese
-        st.subheader("Resultados Anuais - Proposta da Tese")
+        st.subheader("📋 Resultados Anuais - Proposta da Tese")
 
         # Criar uma cópia para formatação
         df_anual_formatado = df_anual_revisado.copy()
@@ -992,7 +1007,7 @@ if st.session_state.get('run_simulation', False):
         st.dataframe(df_anual_formatado)
 
         # Tabela de resultados anuais - Metodologia UNFCCC
-        st.subheader("Resultados Anuais - Metodologia UNFCCC")
+        st.subheader("📋 Resultados Anuais - Metodologia UNFCCC")
 
         # Criar uma cópia para formatação
         df_comp_formatado = df_comp_anual_revisado.copy()
@@ -1003,13 +1018,13 @@ if st.session_state.get('run_simulation', False):
         st.dataframe(df_comp_formatado)
 
 else:
-    st.info("Ajuste os parâmetros na barra lateral e clique em 'Executar Simulação' para ver os resultados.")
+    st.info("💡 Ajuste os parâmetros na barra lateral e clique em 'Executar Simulação' para ver os resultados.")
 
 # Rodapé
 st.markdown("---")
 st.markdown("""
 
-**Referências por Cenário:**
+**📚 Referências por Cenário:**
 
 **Cenário de Baseline (Aterro Sanitário):**
 - Metano: IPCC (2006), UNFCCC (2016) e Wang et al. (2023) 
