@@ -213,7 +213,7 @@ def exibir_cotacao_carbono():
     
     # Mostrar mensagem de atualização se necessário
     if st.session_state.get('mostrar_atualizacao', False):
-        st.sidebar.info("🔄 Atualizando cotações do Investing.com...")
+        st.sidebar.info("🔄 Atualizando cotações...")
         
         # Obter cotação do carbono
         preco_carbono, moeda, contrato_info, sucesso_carbono, fonte_carbono = obter_cotacao_carbono()
@@ -238,7 +238,7 @@ def exibir_cotacao_carbono():
     st.sidebar.metric(
         label=f"Preço do Carbono (tCO₂eq)",
         value=f"{st.session_state.moeda_carbono} {st.session_state.preco_carbono:.2f}",
-        help=f"Fonte: {st.session_state.fonte_cotacao} (Atualizado automaticamente)"
+        help=f"Fonte: {st.session_state.fonte_cotacao}"
     )
     
     # Exibe cotação atual do Euro
@@ -268,9 +268,9 @@ def exibir_cotacao_carbono():
         **Mercado de Referência:**
         - European Union Allowances (EUA)
         - Contratos futuros de carbono
-        - Preços em tempo real do Investing.com
+        - Preços em tempo real
         
-        **Atualização Automática:**
+        **Atualização:**
         - As cotações são carregadas automaticamente ao abrir o app
         - Clique em "Atualizar Cotações" para valores mais recentes
         - Em caso de falha, usa valores de referência atualizados
@@ -738,14 +738,10 @@ if st.session_state.get('run_simulation', False):
                 help=f"Baseado em {formatar_br(total_evitado_unfccc)} tCO₂eq evitadas"
             )
         
-        # Status do contrato
-        status_contrato = "⏳ **ATUAL**"
-        
         # Explicação sobre compra e venda
-        with st.expander(f"💡 Como funciona a comercialização no mercado de carbono? - {status_contrato}"):
+        with st.expander("💡 Como funciona a comercialização no mercado de carbono?"):
             st.markdown(f"""
             **Para o Mercado de Carbono:**
-            - **Status:** {status_contrato}
             - **Preço em Euro:** {moeda} {preco_carbono:.2f}/tCO₂eq
             - **Preço em Real:** R$ {formatar_br(preco_carbono * taxa_cambio)}/tCO₂eq
             - **Taxa de câmbio:** 1 Euro = R$ {taxa_cambio:.2f}
@@ -761,8 +757,8 @@ if st.session_state.get('run_simulation', False):
             
             **Mercado de Referência:**
             - European Union Allowances (EUA)
-            - Preços em tempo real do Investing.com
-            - Atualização manual via botão na sidebar
+            - Contratos futuros de carbono
+            - Preços em tempo real
             """)
         
         # Métricas originais de emissões
