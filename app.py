@@ -27,46 +27,7 @@ plt.rcParams['font.size'] = 10
 sns.set_style("whitegrid")
 
 # =============================================================================
-# INICIALIZAÇÃO DA SESSION STATE
-# =============================================================================
-
-# Inicializar todas as variáveis de session state necessárias
-def inicializar_session_state():
-    if 'preco_carbono' not in st.session_state:
-        # Buscar cotação automaticamente na inicialização
-        preco_carbono, moeda, contrato_info, sucesso, fonte = obter_cotacao_carbono()
-        st.session_state.preco_carbono = preco_carbono
-        st.session_state.moeda_carbono = moeda
-        st.session_state.fonte_cotacao = fonte
-        
-    if 'taxa_cambio' not in st.session_state:
-        # Buscar cotação do Euro automaticamente
-        preco_euro, moeda_real, sucesso_euro, fonte_euro = obter_cotacao_euro_real()
-        st.session_state.taxa_cambio = preco_euro
-        st.session_state.moeda_real = moeda_real
-        
-    if 'moeda_real' not in st.session_state:
-        st.session_state.moeda_real = "R$"
-    if 'cotacao_atualizada' not in st.session_state:
-        st.session_state.cotacao_atualizada = False
-    if 'run_simulation' not in st.session_state:
-        st.session_state.run_simulation = False
-    if 'mostrar_atualizacao' not in st.session_state:
-        st.session_state.mostrar_atualizacao = False
-    if 'cotacao_carregada' not in st.session_state:
-        st.session_state.cotacao_carregada = False
-
-# Chamar a inicialização
-inicializar_session_state()
-
-# Título do aplicativo
-st.title("Simulador de Emissões de tCO₂eq")
-st.markdown("""
-Esta ferramenta projeta os Créditos de Carbono ao calcular as emissões de gases de efeito estufa para dois contextos de gestão de resíduos
-""")
-
-# =============================================================================
-# FUNÇÕES DE COTAÇÃO AUTOMÁTICA DO CARBONO E CÂMBIO
+# FUNÇÕES DE COTAÇÃO AUTOMÁTICA DO CARBONO E CÂMBIO (AGORA DEFINIDAS PRIMEIRO)
 # =============================================================================
 
 def obter_cotacao_carbono_investing():
@@ -284,6 +245,39 @@ def exibir_cotacao_carbono():
         """)
 
 # =============================================================================
+# INICIALIZAÇÃO DA SESSION STATE (AGORA DEPOIS DAS FUNÇÕES DE COTAÇÃO)
+# =============================================================================
+
+# Inicializar todas as variáveis de session state necessárias
+def inicializar_session_state():
+    if 'preco_carbono' not in st.session_state:
+        # Buscar cotação automaticamente na inicialização
+        preco_carbono, moeda, contrato_info, sucesso, fonte = obter_cotacao_carbono()
+        st.session_state.preco_carbono = preco_carbono
+        st.session_state.moeda_carbono = moeda
+        st.session_state.fonte_cotacao = fonte
+        
+    if 'taxa_cambio' not in st.session_state:
+        # Buscar cotação do Euro automaticamente
+        preco_euro, moeda_real, sucesso_euro, fonte_euro = obter_cotacao_euro_real()
+        st.session_state.taxa_cambio = preco_euro
+        st.session_state.moeda_real = moeda_real
+        
+    if 'moeda_real' not in st.session_state:
+        st.session_state.moeda_real = "R$"
+    if 'cotacao_atualizada' not in st.session_state:
+        st.session_state.cotacao_atualizada = False
+    if 'run_simulation' not in st.session_state:
+        st.session_state.run_simulation = False
+    if 'mostrar_atualizacao' not in st.session_state:
+        st.session_state.mostrar_atualizacao = False
+    if 'cotacao_carregada' not in st.session_state:
+        st.session_state.cotacao_carregada = False
+
+# Chamar a inicialização
+inicializar_session_state()
+
+# =============================================================================
 # FUNÇÕES ORIGINAIS DO SEU SCRIPT
 # =============================================================================
 
@@ -325,6 +319,12 @@ def br_format_5_dec(x, pos):
     Função de formatação para eixos de gráficos (padrão brasileiro com 5 decimais)
     """
     return f"{x:,.5f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+# Título do aplicativo
+st.title("Simulador de Emissões de tCO₂eq")
+st.markdown("""
+Esta ferramenta projeta os Créditos de Carbono ao calcular as emissões de gases de efeito estufa para dois contextos de gestão de resíduos
+""")
 
 # =============================================================================
 # SIDEBAR COM PARÂMETROS
